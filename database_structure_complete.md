@@ -53,6 +53,7 @@ CREATE TABLE orders (
     order_number VARCHAR(20) UNIQUE NOT NULL,
     user_id INTEGER NOT NULL,
     customer_name VARCHAR(100),
+    lottery_period DATE NOT NULL,           -- งวดวันที่ (วันที่หวยออก)
     total_amount INTEGER DEFAULT 0,
     status VARCHAR(20) DEFAULT 'completed',
     pdf_path VARCHAR(255),
@@ -67,6 +68,7 @@ CREATE INDEX idx_orders_user_id ON orders(user_id);
 CREATE INDEX idx_orders_order_number ON orders(order_number);
 CREATE INDEX idx_orders_created_at ON orders(created_at);
 CREATE INDEX idx_orders_status ON orders(status);
+CREATE INDEX idx_orders_lottery_period ON orders(lottery_period);
 ```
 
 **คำอธิบายฟิลด์:**
@@ -74,6 +76,7 @@ CREATE INDEX idx_orders_status ON orders(status);
 - `order_number`: เลขที่สั่งซื้อ (รูปแบบ: ORD20240901143025)
 - `user_id`: Foreign Key อ้างอิงถึง users.id
 - `customer_name`: ชื่อลูกค้า (ไม่บังคับ)
+- `lottery_period`: งวดวันที่ (วันที่หวยออก) - คำนวณจากวันที่สั่งซื้อ
 - `total_amount`: ยอดรวมเป็นสตางค์ (เก็บเป็น Integer เพื่อความแม่นยำ)
 - `status`: สถานะ ('completed', 'cancelled', 'pending')
 - `pdf_path`: Path ของไฟล์ PDF ใบสั่งซื้อ
@@ -220,22 +223,22 @@ orders (1) ←→ (N) order_items
 ### 3.2 ER Diagram
 
 ```
-┌─────────────┐       ┌─────────────┐       ┌─────────────────┐
-│    users    │ 1   N │   orders    │ 1   N │  order_items    │
-├─────────────┤←──────├─────────────┤←──────├─────────────────┤
-│ id (PK)     │       │ id (PK)     │       │ id (PK)         │
-│ name        │       │ order_number│       │ order_id(FK)    │
-│ username    │       │ user_id(FK) │       │ number          │
-│ password_hash│       │ customer_name│       │ buy_2_top       │
-│ role        │       │ total_amount│       │ buy_2_bottom    │
-│ is_active   │       │ status      │       │ buy_3_top       │
-│ created_at  │       │ pdf_path    │       │ buy_tote        │
-│ updated_at  │       │ notes       │       │ payout_2_top    │
-└─────────────┘       │ created_at  │       │ payout_2_bottom │
-                      │ updated_at  │       │ payout_3_top    │
-                      └─────────────┘       │ payout_tote     │
-                                            │ created_at      │
-                                            └─────────────────┘
+┌─────────────┐       ┌─────────────────┐       ┌─────────────────┐
+│    users    │ 1   N │     orders      │ 1   N │  order_items    │
+├─────────────┤←──────├─────────────────┤←──────├─────────────────┤
+│ id (PK)     │       │ id (PK)         │       │ id (PK)         │
+│ name        │       │ order_number    │       │ order_id(FK)    │
+│ username    │       │ user_id(FK)     │       │ number          │
+│ password_hash│       │ customer_name   │       │ buy_2_top       │
+│ role        │       │ lottery_period  │       │ buy_2_bottom    │
+│ is_active   │       │ total_amount    │       │ buy_3_top       │
+│ created_at  │       │ status          │       │ buy_tote        │
+│ updated_at  │       │ pdf_path        │       │ payout_2_top    │
+└─────────────┘       │ notes           │       │ payout_2_bottom │
+                      │ created_at      │       │ payout_3_top    │
+                      │ updated_at      │       │ payout_tote     │
+                      └─────────────────┘       │ created_at      │
+                                                └─────────────────┘
 
 ┌─────────────┐       ┌─────────────┐
 │   limits    │       │blocked_numbers│
@@ -686,4 +689,97 @@ ORDER BY revenue_today DESC;
 6. **การวิเคราะห์**: Views และ Analytics Queries
 
 โครงสร้างนี้รองรับการใช้งานจริงและสามารถรองรับผู้ใช้หลายร้อยคนได้อย่างมีประสิทธิภาพ
+
+
+
+## การคำนวณงวดวันที่ (Lottery Period Calculation)
+
+### กฎการคำนวณ
+หวยออกทุกวันที่ 1 และ 16 ของเดือน การคำนวณงวดวันที่จะขึ้นอยู่กับวันที่สั่งซื้อ:
+
+- **วันที่ 1-15 ของเดือน** → งวดวันที่ 16 ของเดือนเดียวกัน
+- **วันที่ 16-31 ของเดือน** → งวดวันที่ 1 ของเดือนถัดไป
+
+### ตัวอย่างการคำนวณ
+
+| วันที่สั่งซื้อ | งวดวันที่ |
+|---------------|-----------|
+| 5 กันยายน 2568 | 16 กันยายน 2568 |
+| 15 กันยายน 2568 | 16 กันยายน 2568 |
+| 16 กันยายน 2568 | 1 ตุลาคม 2568 |
+| 25 กันยายน 2568 | 1 ตุลาคม 2568 |
+| 31 ธันวาคม 2568 | 1 มกราคม 2569 |
+
+### ฟังก์ชันคำนวณ (Python)
+
+```python
+from datetime import datetime, date
+from dateutil.relativedelta import relativedelta
+
+def calculate_lottery_period(order_date):
+    """
+    คำนวณงวดวันที่จากวันที่สั่งซื้อ
+    
+    Args:
+        order_date (date): วันที่สั่งซื้อ
+        
+    Returns:
+        date: งวดวันที่ (วันที่หวยออก)
+    """
+    day = order_date.day
+    
+    if day <= 15:
+        # งวดวันที่ 16 ของเดือนเดียวกัน
+        return date(order_date.year, order_date.month, 16)
+    else:
+        # งวดวันที่ 1 ของเดือนถัดไป
+        next_month = order_date + relativedelta(months=1)
+        return date(next_month.year, next_month.month, 1)
+
+# ตัวอย่างการใช้งาน
+order_date = date(2024, 9, 5)  # 5 กันยายน 2568
+lottery_period = calculate_lottery_period(order_date)
+print(f"สั่งซื้อวันที่: {order_date}")
+print(f"งวดวันที่: {lottery_period}")  # 16 กันยายน 2568
+```
+
+### SQL Function สำหรับ SQLite
+
+```sql
+-- ฟังก์ชันคำนวณงวดวันที่ใน SQLite
+CREATE VIEW lottery_period_calculator AS
+SELECT 
+    DATE('now') as order_date,
+    CASE 
+        WHEN CAST(strftime('%d', DATE('now')) AS INTEGER) <= 15 THEN
+            DATE(strftime('%Y-%m-16', DATE('now')))
+        ELSE
+            DATE(strftime('%Y-%m-01', DATE('now', '+1 month')))
+    END as lottery_period;
+
+-- ตัวอย่างการใช้งาน
+SELECT 
+    order_date,
+    CASE 
+        WHEN CAST(strftime('%d', order_date) AS INTEGER) <= 15 THEN
+            DATE(strftime('%Y-%m-16', order_date))
+        ELSE
+            DATE(strftime('%Y-%m-01', order_date, '+1 month'))
+    END as lottery_period
+FROM orders;
+```
+
+### การใช้งานในระบบ
+
+1. **เมื่อสร้าง Order ใหม่:** ระบบจะคำนวณ lottery_period อัตโนมัติจาก created_at
+2. **ในหน้า Dashboard:** แสดงข้อมูลแยกตามงวด
+3. **ในรายงาน:** สามารถดูยอดขายแยกตามงวดได้
+4. **ในใบสั่งซื้อ PDF:** แสดงงวดวันที่ที่ชัดเจน
+
+### ข้อดีของการเพิ่มฟิลด์นี้
+
+- **การจัดกลุ่มข้อมูล:** สามารถแยกข้อมูลตามงวดได้ชัดเจน
+- **การรายงาน:** สร้างรายงานยอดขายแยกตามงวด
+- **การตรวจสอบ:** ตรวจสอบยอดขายก่อนหวยออกแต่ละงวด
+- **การวิเคราะห์:** วิเคราะห์แนวโน้มการซื้อในแต่ละงวด
 
