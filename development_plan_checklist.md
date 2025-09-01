@@ -8,7 +8,7 @@
 
 ## ภาพรวมแผนการพัฒนา
 
-แผนการพัฒนาระบบรวบรวมข้อมูลการทายเลขแบ่งออกเป็น 6 เฟสหลัก โดยแต่ละเฟสมีเป้าหมายและผลลัพธ์ที่ชัดเจน การพัฒนาจะใช้วิธี Agile Development โดยมีการทดสอบและปรับปรุงอย่างต่อเนื่อง
+แผนการพัฒนาระบบสมาชิกขายส่งแบ่งออกเป็น 6 เฟสหลัก โดยแต่ละเฟสมีเป้าหมายและผลลัพธ์ที่ชัดเจน การพัฒนาจะใช้วิธี Agile Development โดยมีการทดสอบและปรับปรุงอย่างต่อเนื่อง
 
 ระยะเวลาการพัฒนาโดยรวมประมาณ 4-6 สัปดาห์ ขึ้นอยู่กับความซับซ้อนของการปรับแต่งและการทดสอบ ทีมพัฒนาควรประกอบด้วย Backend Developer, Frontend Developer และ QA Tester อย่างน้อย 1 คนต่อตำแหน่ง
 
@@ -550,4 +550,246 @@
 แผนการพัฒนานี้ครอบคลุมทุกขั้นตอนตั้งแต่การเริ่มต้นโปรเจคจนถึงการ deploy และ maintain ระบบ การปฏิบัติตาม checklist นี้จะช่วยให้ได้ระบบที่มีคุณภาพ ปลอดภัย และใช้งานได้จริง
 
 ความสำเร็จของโปรเจคขึ้นอยู่กับการทำงานเป็นทีม การสื่อสารที่ดี และการทดสอบอย่างละเอียด ควรมีการ review และปรับปรุงแผนนี้เป็นระยะตามสถานการณ์จริง
+
+
+## 6. P0 และ P1 Enhanced Development Plan
+
+### 6.1 P0 Critical Implementation (สัปดาห์ที่ 1-3)
+
+**Week 1: Security และ Database Foundation**
+- [ ] **Security Implementation**
+  - [ ] Setup Flask-Limiter for rate limiting
+  - [ ] Implement CSRF protection
+  - [ ] Configure secure session management
+  - [ ] Setup audit logging system
+  - [ ] Implement input validation and sanitization
+  - [ ] Configure secure headers
+  - [ ] Setup secret key management
+
+- [ ] **Database Schema Migration**
+  - [ ] Create migration scripts for new schema
+  - [ ] Add audit_logs table
+  - [ ] Add rules table
+  - [ ] Update order_items with normalization fields
+  - [ ] Add unique constraints
+  - [ ] Create necessary indexes
+  - [ ] Test migration with sample data
+
+**Week 2: Rule Engine และ Data Integrity**
+- [ ] **Rule Engine Development**
+  - [ ] Implement core rule processing
+  - [ ] Develop limit calculation logic
+  - [ ] Create blocked number validation
+  - [ ] Implement number canonicalization
+  - [ ] Build rule validation system
+  - [ ] Create rule matrix configuration
+
+- [ ] **Data Integrity System**
+  - [ ] Implement data normalization
+  - [ ] Create data validation framework
+  - [ ] Build duplicate prevention system
+  - [ ] Develop integrity checker
+  - [ ] Test with various data scenarios
+
+**Week 3: P0 Testing และ Integration**
+- [ ] **Comprehensive Testing**
+  - [ ] Unit tests for security components
+  - [ ] Integration tests for rule engine
+  - [ ] Security penetration testing
+  - [ ] Data integrity validation tests
+  - [ ] Performance testing under load
+
+- [ ] **P0 Integration**
+  - [ ] Integrate all P0 components
+  - [ ] End-to-end testing
+  - [ ] Security audit
+  - [ ] Performance optimization
+  - [ ] Documentation update
+
+### 6.2 P1 Feature Implementation (สัปดาห์ที่ 4-6)
+
+**Week 4: Timezone และ Export System**
+- [ ] **Timezone Management**
+  - [ ] Implement Asia/Bangkok timezone configuration
+  - [ ] Create cut-off time management system
+  - [ ] Develop period calculation logic
+  - [ ] Build admin override functionality
+  - [ ] Test timezone edge cases
+
+- [ ] **Export System Development**
+  - [ ] Implement CSV-safe export
+  - [ ] Create Excel export functionality
+  - [ ] Develop PDF export system
+  - [ ] Build export orchestration
+  - [ ] Implement data sanitization
+  - [ ] Test export security
+
+**Week 5: Backup และ Analytics**
+- [ ] **Backup System**
+  - [ ] Implement automated backup manager
+  - [ ] Create file backup utilities
+  - [ ] Develop database backup system
+  - [ ] Build retention management
+  - [ ] Implement restore functionality
+  - [ ] Test backup/restore procedures
+
+- [ ] **Analytics Engine**
+  - [ ] Develop core analytics service
+  - [ ] Implement trend analysis
+  - [ ] Create user behavior analysis
+  - [ ] Build number popularity analysis
+  - [ ] Develop report generation
+  - [ ] Create dashboard data preparation
+
+**Week 6: Notifications และ Dashboard**
+- [ ] **Real-time Notifications**
+  - [ ] Setup WebSocket infrastructure
+  - [ ] Implement notification service
+  - [ ] Create WebSocket handlers
+  - [ ] Build notification management
+  - [ ] Test real-time functionality
+
+- [ ] **Enhanced Dashboard**
+  - [ ] Implement advanced filters
+  - [ ] Create analytics visualizations
+  - [ ] Build real-time updates
+  - [ ] Develop export integration
+  - [ ] Test dashboard performance
+
+### 6.3 Integration และ Testing (สัปดาห์ที่ 7-8)
+
+**Week 7: System Integration**
+- [ ] **Full System Integration**
+  - [ ] Integrate P0 and P1 components
+  - [ ] End-to-end testing
+  - [ ] Performance optimization
+  - [ ] Security validation
+  - [ ] User acceptance testing
+
+- [ ] **Quality Assurance**
+  - [ ] Comprehensive test suite execution
+  - [ ] Security penetration testing
+  - [ ] Performance load testing
+  - [ ] Usability testing
+  - [ ] Bug fixes and optimizations
+
+**Week 8: Deployment Preparation**
+- [ ] **Production Readiness**
+  - [ ] Production environment setup
+  - [ ] Deployment scripts preparation
+  - [ ] Monitoring and alerting setup
+  - [ ] Backup and recovery procedures
+  - [ ] Documentation finalization
+
+- [ ] **Go-Live Preparation**
+  - [ ] Final security audit
+  - [ ] Performance benchmarking
+  - [ ] Rollback procedures
+  - [ ] Staff training
+  - [ ] Go-live checklist completion
+
+### 6.4 Enhanced Quality Assurance Checklist
+
+**Security Validation:**
+- [ ] Authentication system tested
+- [ ] Authorization controls verified
+- [ ] Rate limiting functional
+- [ ] CSRF protection active
+- [ ] Input validation comprehensive
+- [ ] Audit logging complete
+- [ ] Session security verified
+- [ ] Data encryption confirmed
+
+**Data Integrity Validation:**
+- [ ] Number normalization working
+- [ ] Data validation comprehensive
+- [ ] Duplicate prevention active
+- [ ] Integrity checks functional
+- [ ] Rule engine accurate
+- [ ] Limit calculations correct
+- [ ] Blocked numbers enforced
+- [ ] Canonicalization working
+
+**Feature Functionality:**
+- [ ] Timezone management accurate
+- [ ] Export system secure
+- [ ] Backup system reliable
+- [ ] Analytics accurate
+- [ ] Notifications real-time
+- [ ] Dashboard responsive
+- [ ] Filters functional
+- [ ] Reports accurate
+
+**Performance Validation:**
+- [ ] Response times acceptable
+- [ ] Database queries optimized
+- [ ] Memory usage reasonable
+- [ ] CPU utilization normal
+- [ ] Concurrent users supported
+- [ ] Load testing passed
+- [ ] Stress testing completed
+- [ ] Scalability verified
+
+### 6.5 Production Deployment Checklist
+
+**Infrastructure Readiness:**
+- [ ] Production servers configured
+- [ ] Database servers optimized
+- [ ] Load balancers configured
+- [ ] SSL certificates installed
+- [ ] Firewall rules configured
+- [ ] Monitoring systems active
+- [ ] Backup systems operational
+- [ ] Disaster recovery tested
+
+**Application Deployment:**
+- [ ] Application code deployed
+- [ ] Database migrations executed
+- [ ] Configuration files updated
+- [ ] Environment variables set
+- [ ] Static files deployed
+- [ ] Cache systems configured
+- [ ] Queue systems operational
+- [ ] Scheduled tasks configured
+
+**Security Hardening:**
+- [ ] Security headers configured
+- [ ] Access controls implemented
+- [ ] Audit logging active
+- [ ] Intrusion detection active
+- [ ] Vulnerability scanning complete
+- [ ] Security policies enforced
+- [ ] Incident response ready
+- [ ] Compliance verified
+
+### 6.6 P0/P1 Success Criteria
+
+**P0 Success Metrics:**
+- [ ] Zero security vulnerabilities
+- [ ] 100% data integrity maintained
+- [ ] All rule validations working
+- [ ] Complete audit trail available
+- [ ] Rate limiting effective
+- [ ] CSRF protection active
+- [ ] Session security verified
+
+**P1 Success Metrics:**
+- [ ] Timezone accuracy 100%
+- [ ] Export functionality secure
+- [ ] Backup/restore tested
+- [ ] Analytics data accurate
+- [ ] Real-time notifications working
+- [ ] Dashboard filters functional
+- [ ] Performance optimized
+
+**Overall Enhanced Success Metrics:**
+- [ ] System uptime > 99.9%
+- [ ] Response time < 1 second (improved)
+- [ ] User satisfaction > 95% (improved)
+- [ ] Zero data loss incidents
+- [ ] Security compliance 100%
+- [ ] Scalability tested to 1000+ concurrent users
+- [ ] All P0 and P1 features operational
+
+การพัฒนาตามแผนที่ปรับปรุงนี้จะทำให้ระบบมีความปลอดภัยระดับ enterprise ความถูกต้องสมบูรณ์ และใช้งานได้จริงในระดับ production พร้อมรองรับการขยายตัวและการใช้งานหนักในอนาคต
 

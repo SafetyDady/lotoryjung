@@ -1,9 +1,9 @@
-# System Design - ระบบรวบรวมและจัดการข้อมูลการทายเลข
+# System Design - ระบบสมาชิกขายส่ง
 
 ## 1. ภาพรวมระบบ (System Overview)
 
 ### วัตถุประสงค์
-สร้างระบบรวบรวมและจัดการข้อมูลการทายเลขจากสมาชิก รองรับเลข 2 หลัก, 3 หลัก และระบบโต๊ด พร้อมระบบการเดิมพัน "บน" "ล่าง" และ "โต๊ด" รวมถึงการจัดการรายการสมาชิกแต่ละคน
+สร้างระบบสมาชิกขายส่งสำหรับจัดการข้อมูลการทายเลขจากสมาชิก รองรับเลข 2 หลัก, 3 หลัก และระบบโต๊ด พร้อมระบบการเดิมพัน "บน" "ล่าง" และ "โต๊ด" รวมถึงการจัดการรายการสมาชิกแต่ละคน
 
 ### คุณสมบัติหลัก
 - ระบบ Authentication (Login/Logout)
@@ -1310,4 +1310,132 @@ def calculate_pdf_size():
                     pass
     return round(total_size / (1024 * 1024), 2)
 ```
+
+
+## 9. P0 และ P1 System Enhancements
+
+### 9.1 P0 Critical Requirements Implementation
+ระบบได้รับการปรับปรุงตาม P0 requirements ที่สำคัญเพื่อให้มีความปลอดภัยและถูกต้องสูงสุด:
+
+**Rule Matrix และกติกาที่ชัดเจน:**
+- กำหนดกติกาเลขอั้นชัดเจน (จ่าย 0.5 เท่าของราคาปกติ)
+- ระบบ Limit คิดจาก เลข + ประเภท (แยกตาม field)
+- เพิ่ม batch_id สำหรับแยกงวดและจัดการข้อมูล
+- Rule Matrix ครบถ้วนสำหรับทุกประเภทเลข
+
+**Database Schema ที่ปรับปรุงใหม่:**
+- ปรับปรุงตาราง order_items ใหม่ทั้งหมดให้รองรับ normalization
+- เพิ่มตาราง rules สำหรับจัดการกติกา
+- เพิ่มตาราง audit_logs สำหรับ security tracking
+- เพิ่ม unique constraints ป้องกันข้อมูลซ้ำ
+- เพิ่ม indexes สำคัญเพื่อประสิทธิภาพ
+
+**Security Measures ที่เข้มงวด:**
+- Session cookies security configuration
+- Rate limiting ด้วย Flask-Limiter
+- Secret key management ที่ปลอดภัย
+- Audit logging ครบถ้วนทุกการกระทำ
+- CSRF protection และ input validation
+
+**Data Correctness และ Integrity:**
+- Canonicalize โต๊ด (367 = 736 = 673 เป็นเลขเดียวกัน)
+- Normalize เลข (2 หลัก = 00-99, 3 หลัก = 000-999)
+- Unique constraints ป้องกันเลขซ้ำในคำสั่งซื้อเดียวกัน
+- Data validation ที่เข้มงวดทุกขั้นตอน
+
+### 9.2 P1 Additional Features
+ระบบได้รับการเพิ่มฟีเจอร์ P1 เพื่อความสมบูรณ์และใช้งานได้จริง:
+
+**Timezone Management ที่ถูกต้อง:**
+- Asia/Bangkok timezone configuration
+- Cut-off time management (15:30 น.)
+- Admin override สำหรับ grace period
+- Automatic period calculation
+
+**CSV-safe Export System:**
+- ป้องกัน CSV injection attacks
+- Export ข้อมูลปลอดภัยทุกรูปแบบ
+- Multiple export formats (CSV, Excel, PDF)
+- Filtered export ตามเงื่อนไข
+
+**Automated Backup/Retention:**
+- Automated backup system ทุกวัน
+- Data retention policies ที่กำหนดได้
+- Secure data purge เมื่อหมดอายุ
+- Backup verification และ restore capability
+
+**Advanced Dashboard Filters:**
+- Advanced filtering options สำหรับทุกข้อมูล
+- Real-time notifications ด้วย WebSocket
+- Comprehensive analytics และ reporting
+- User behavior analysis
+
+### 9.3 Integration และ Compatibility
+การปรับปรุงทั้งหมดได้รับการออกแบบให้:
+
+**Backward Compatibility:**
+- รองรับข้อมูลเก่าที่มีอยู่
+- Migration scripts สำหรับ upgrade
+- Gradual rollout capability
+
+**Performance Optimization:**
+- Database indexing ที่เหมาะสม
+- Query optimization
+- Caching strategies
+- Load balancing ready
+
+**Monitoring และ Maintenance:**
+- Health check endpoints
+- Performance metrics
+- Error tracking และ alerting
+- Automated maintenance tasks
+
+### 9.4 Security Hardening
+ระบบความปลอดภัยที่เข้มงวด:
+
+**Authentication และ Authorization:**
+- Strong password policies
+- Session management ที่ปลอดภัย
+- Role-based access control
+- Multi-factor authentication ready
+
+**Data Protection:**
+- Encryption at rest และ in transit
+- Secure file handling
+- PII data protection
+- GDPR compliance ready
+
+**Audit และ Compliance:**
+- Comprehensive audit trails
+- Compliance reporting
+- Data retention policies
+- Privacy controls
+
+## 10. Implementation Roadmap
+
+### Phase 1: P0 Critical (สัปดาห์ที่ 1-2)
+1. Database schema migration
+2. Security implementation
+3. Data correctness fixes
+4. Rule matrix implementation
+
+### Phase 2: P1 Features (สัปดาห์ที่ 3-4)
+1. Timezone management
+2. Export system
+3. Backup automation
+4. Dashboard enhancements
+
+### Phase 3: Testing และ Deployment (สัปดาห์ที่ 5-6)
+1. Comprehensive testing
+2. Performance optimization
+3. Security audit
+4. Production deployment
+
+### Phase 4: Monitoring และ Maintenance (ต่อเนื่อง)
+1. System monitoring
+2. Performance tuning
+3. Security updates
+4. Feature enhancements
+
+ระบบที่ปรับปรุงใหม่นี้จะมีความปลอดภัย ถูกต้อง และใช้งานได้จริงในระดับ production พร้อมรองรับการขยายตัวในอนาคต
 

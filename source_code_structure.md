@@ -937,3 +937,347 @@ htmlcov/
 
 โครงสร้างนี้เหมาะสำหรับการพัฒนาระบบขนาดเล็กถึงกลาง และสามารถขยายเป็นระบบใหญ่ได้ในอนาคต
 
+
+## 6. P0 และ P1 Enhanced Structure
+
+### 6.1 P0 Critical Components
+
+**Security Layer:**
+```
+security/
+├── __init__.py
+├── auth.py              # Authentication & authorization
+├── rate_limiter.py      # Rate limiting implementation
+├── csrf_protection.py   # CSRF protection
+├── session_manager.py   # Secure session management
+├── audit_logger.py      # Security audit logging
+└── validators.py        # Input validation & sanitization
+```
+
+**Rule Engine:**
+```
+rules/
+├── __init__.py
+├── rule_engine.py       # Core rule processing
+├── limit_calculator.py  # Limit calculation logic
+├── blocked_checker.py   # Blocked number validation
+├── canonicalizer.py     # Number canonicalization
+└── validators.py        # Rule validation
+```
+
+**Data Integrity:**
+```
+data_integrity/
+├── __init__.py
+├── normalizer.py        # Data normalization
+├── validator.py         # Data validation
+├── deduplicator.py      # Duplicate prevention
+└── integrity_checker.py # Data integrity verification
+```
+
+### 6.2 P1 Enhanced Components
+
+**Timezone Management:**
+```
+timezone/
+├── __init__.py
+├── timezone_utils.py    # Timezone utilities
+├── cutoff_manager.py    # Cut-off time management
+├── period_calculator.py # Lottery period calculation
+└── schedule_manager.py  # Scheduled task management
+```
+
+**Export System:**
+```
+export/
+├── __init__.py
+├── csv_exporter.py      # CSV-safe export
+├── excel_exporter.py    # Excel export
+├── pdf_exporter.py      # PDF export
+├── export_manager.py    # Export orchestration
+└── sanitizers.py        # Data sanitization for export
+```
+
+**Backup System:**
+```
+backup/
+├── __init__.py
+├── backup_manager.py    # Backup orchestration
+├── file_backup.py       # File backup utilities
+├── db_backup.py         # Database backup
+├── retention_manager.py # Data retention policies
+└── restore_manager.py   # Backup restoration
+```
+
+**Analytics Engine:**
+```
+analytics/
+├── __init__.py
+├── analytics_service.py # Core analytics
+├── trend_analyzer.py    # Trend analysis
+├── user_behavior.py     # User behavior analysis
+├── number_popularity.py # Number popularity analysis
+├── report_generator.py  # Report generation
+└── dashboard_data.py    # Dashboard data preparation
+```
+
+**Notification System:**
+```
+notifications/
+├── __init__.py
+├── notification_service.py # Core notification service
+├── websocket_handler.py    # WebSocket management
+├── email_notifier.py       # Email notifications
+├── sms_notifier.py         # SMS notifications (future)
+└── push_notifier.py        # Push notifications (future)
+```
+
+### 6.3 Enhanced API Structure
+
+**API v2 with Enhanced Features:**
+```
+api/
+├── v1/                  # Legacy API (backward compatibility)
+│   ├── __init__.py
+│   ├── orders.py
+│   ├── users.py
+│   └── admin.py
+├── v2/                  # Enhanced API
+│   ├── __init__.py
+│   ├── auth.py          # Authentication endpoints
+│   ├── orders.py        # Enhanced order management
+│   ├── users.py         # User management
+│   ├── admin.py         # Admin functions
+│   ├── analytics.py     # Analytics endpoints
+│   ├── export.py        # Export endpoints
+│   ├── notifications.py # Notification management
+│   └── system.py        # System management
+├── middleware/
+│   ├── __init__.py
+│   ├── auth_middleware.py
+│   ├── rate_limit_middleware.py
+│   ├── audit_middleware.py
+│   └── cors_middleware.py
+└── schemas/
+    ├── __init__.py
+    ├── order_schemas.py
+    ├── user_schemas.py
+    ├── admin_schemas.py
+    └── common_schemas.py
+```
+
+### 6.4 Enhanced Configuration Structure
+
+**Environment-specific Configurations:**
+```
+config/
+├── __init__.py
+├── base.py              # Base configuration
+├── development.py       # Development settings
+├── testing.py           # Testing settings
+├── production.py        # Production settings
+├── security.py          # Security configurations
+├── database.py          # Database configurations
+├── redis.py             # Redis configurations
+├── celery.py            # Celery configurations
+├── logging.py           # Logging configurations
+└── monitoring.py        # Monitoring configurations
+```
+
+### 6.5 Enhanced Testing Structure
+
+**Comprehensive Testing Suite:**
+```
+tests/
+├── unit/
+│   ├── test_models.py
+│   ├── test_services.py
+│   ├── test_utils.py
+│   ├── test_security.py     # Security tests
+│   ├── test_rules.py        # Rule engine tests
+│   └── test_analytics.py    # Analytics tests
+├── integration/
+│   ├── test_api.py
+│   ├── test_auth.py
+│   ├── test_orders.py
+│   ├── test_export.py       # Export tests
+│   └── test_notifications.py # Notification tests
+├── e2e/
+│   ├── test_user_flow.py
+│   ├── test_admin_flow.py
+│   └── test_security_flow.py
+├── performance/
+│   ├── test_load.py
+│   ├── test_stress.py
+│   └── test_scalability.py
+├── security/
+│   ├── test_auth_security.py
+│   ├── test_input_validation.py
+│   ├── test_rate_limiting.py
+│   └── test_data_protection.py
+└── fixtures/
+    ├── users.py
+    ├── orders.py
+    └── test_data.py
+```
+
+### 6.6 Enhanced Deployment Structure
+
+**Production-ready Deployment:**
+```
+deployment/
+├── docker/
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   ├── docker-compose.prod.yml
+│   └── nginx/
+│       ├── nginx.conf
+│       └── ssl/
+├── kubernetes/
+│   ├── namespace.yaml
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   ├── ingress.yaml
+│   ├── configmap.yaml
+│   └── secrets.yaml
+├── scripts/
+│   ├── deploy.sh
+│   ├── backup.sh
+│   ├── restore.sh
+│   ├── migrate.sh
+│   └── health_check.sh
+├── monitoring/
+│   ├── prometheus.yml
+│   ├── grafana/
+│   └── alerting/
+└── security/
+    ├── ssl_certs/
+    ├── secrets/
+    └── policies/
+```
+
+### 6.7 Enhanced Monitoring และ Logging
+
+**Production Monitoring:**
+```
+monitoring/
+├── __init__.py
+├── metrics.py           # Application metrics
+├── health_checks.py     # Health check endpoints
+├── performance.py       # Performance monitoring
+├── security_monitor.py  # Security monitoring
+├── error_tracker.py     # Error tracking
+└── alerting.py          # Alert management
+
+logging/
+├── __init__.py
+├── formatters.py        # Log formatters
+├── handlers.py          # Custom log handlers
+├── filters.py           # Log filters
+├── audit_logger.py      # Audit logging
+└── security_logger.py   # Security event logging
+```
+
+## 7. Enhanced Development Workflow
+
+### 7.1 Development Environment Setup
+```bash
+# Clone repository
+git clone https://github.com/SafetyDady/lotoryjung.git
+cd lotoryjung
+
+# Setup virtual environment
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# or
+venv\Scripts\activate     # Windows
+
+# Install dependencies
+pip install -r requirements/development.txt
+
+# Setup database
+flask db upgrade
+
+# Setup Redis (for caching and sessions)
+redis-server
+
+# Setup environment variables
+cp .env.example .env
+# Edit .env with your configurations
+
+# Run development server
+flask run --debug
+```
+
+### 7.2 Testing Workflow
+```bash
+# Run all tests
+pytest
+
+# Run specific test categories
+pytest tests/unit/
+pytest tests/integration/
+pytest tests/security/
+
+# Run with coverage
+pytest --cov=src --cov-report=html
+
+# Run performance tests
+pytest tests/performance/
+```
+
+### 7.3 Security Workflow
+```bash
+# Security scan
+bandit -r src/
+
+# Dependency vulnerability check
+safety check
+
+# Code quality check
+flake8 src/
+black src/
+
+# Security headers check
+python scripts/check_security_headers.py
+```
+
+### 7.4 Deployment Workflow
+```bash
+# Build Docker image
+docker build -t lotoryjung:latest .
+
+# Run with Docker Compose
+docker-compose up -d
+
+# Deploy to production
+./deployment/scripts/deploy.sh production
+
+# Health check
+./deployment/scripts/health_check.sh
+```
+
+## 8. Enhanced Features Summary
+
+### 8.1 P0 Critical Enhancements
+1. **Security Hardening**: Rate limiting, CSRF protection, secure sessions
+2. **Data Integrity**: Normalization, validation, duplicate prevention
+3. **Rule Engine**: Comprehensive rule processing and validation
+4. **Audit Logging**: Complete audit trail for all operations
+
+### 8.2 P1 Additional Features
+1. **Timezone Management**: Proper timezone handling and cut-off times
+2. **Export System**: Secure, CSV-safe export functionality
+3. **Backup System**: Automated backup and retention management
+4. **Analytics Engine**: Advanced analytics and reporting
+5. **Real-time Notifications**: WebSocket-based real-time updates
+
+### 8.3 Production Readiness
+1. **Scalability**: Horizontal scaling support
+2. **Monitoring**: Comprehensive monitoring and alerting
+3. **Security**: Enterprise-grade security measures
+4. **Performance**: Optimized for high performance
+5. **Reliability**: High availability and fault tolerance
+
+โครงสร้างที่ปรับปรุงใหม่นี้รองรับการพัฒนาระบบที่มีความปลอดภัยสูง มีประสิทธิภาพ และพร้อมใช้งานในระดับ production พร้อมทั้งรองรับการขยายตัวและการบำรุงรักษาในอนาคต
+
