@@ -5,13 +5,14 @@ main_bp = Blueprint('main', __name__)
 
 @main_bp.route('/')
 def index():
-    """Home page"""
+    """Home page - redirect to login"""
     if current_user.is_authenticated:
         if current_user.is_admin():
             return redirect(url_for('admin.dashboard'))
         else:
             return redirect(url_for('user.dashboard'))
-    return render_template('index.html')
+    # Redirect to login page instead of showing landing page
+    return redirect(url_for('auth.login'))
 
 @main_bp.route('/about')
 def about():
