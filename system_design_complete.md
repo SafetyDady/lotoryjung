@@ -879,3 +879,435 @@ def test_one_time_use():
     assert result2 is None
 ```
 
+
+## 18. ระบบลบข้อมูล (Data Purge System)
+
+### วัตถุประสงค์
+เพื่อความปลอดภัยและการปกป้องข้อมูลส่วนบุคคล Admin สามารถลบข้อมูลการสั่งซื้อทั้งหมดออกจากระบบได้
+
+### ข้อมูลที่จะลบ
+1. **ตาราง orders** - ข้อมูลการสั่งซื้อทั้งหมด
+2. **ตาราง order_items** - รายละเอียดการสั่งซื้อ
+3. **ตาราง download_tokens** - Token สำหรับดาวน์โหลด
+4. **ตาราง number_totals** - สรุปยอดรวมแต่ละเลข
+5. **ตาราง blocked_numbers** - เลขอั้นทั้งหมด
+6. **ไฟล์ PDF** - ใบสั่งซื้อทั้งหมดในโฟลเดอร์ receipts
+7. **Log Files** - บันทึกการใช้งานที่เกี่ยวข้อง
+
+### ข้อมูลที่คงไว้
+1. **ตาราง users** - ข้อมูล User สำหรับ Login
+2. **ตาราง limits** - การตั้งค่า Limit
+3. **Configuration Files** - การตั้งค่าระบบ
+
+### Admin Menu Interface
+
+**หน้า Data Management:**
+```html
+<div class="admin-data-management">
+    <div class="alert alert-warning">
+        <h4><i class="fas fa-exclamation-triangle"></i> การจัดการข้อมูล</h4>
+        <p>การลบข้อมูลจะไม่สามารถกู้คืนได้ กรุณาพิจารณาอย่างรอบคอบ</p>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h5>ลบข้อมูลการสั่งซื้อทั้งหมด</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>สถิติปัจจุบัน:</h6>
+                    <ul>
+                        <li>จำนวนการสั่งซื้อ: <span id="total-orders">{{ total_orders }}</span> รายการ</li>
+                        <li>จำนวนไฟล์ PDF: <span id="total-pdfs">{{ total_pdfs }}</span> ไฟล์</li>
+                        <li>จำนวนเลขอั้น: <span id="total-blocked">{{ total_blocked }}</span> เลข</li>
+                        <li>ขนาดข้อมูล: <span id="total-size">{{ total_size_mb }}</span> MB</li>
+                        <li>ช่วงวันที่: {{ date_range }}</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6>ตัวเลือกการลบ:</h6>
+                    <div class="form-group">
+                        <label>ลบข้อมูลก่อนวันที่:</label>
+                        <input type="date" id="purge-before-date" class="form-control">
+                        <small class="text-muted">เว้นว่างเพื่อลบทั้งหมด</small>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" id="confirm-purge" class="form-check-input">
+                        <label for="confirm-purge" class="form-check-label">
+                            ฉันเข้าใจและยืนยันการลบข้อมูล
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <hr>
+            
+            <div class="text-center">
+                <button onclick="showPurgeConfirmation()" 
+                        class="btn btn-danger btn-lg"
+                        id="purge-btn" disabled>
+                    <i class="fas fa-trash-alt"></i> ลบข้อมูลทั้งหมด
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal ยืนยันการลบ -->
+<div class="modal fade" id="purgeConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">ยืนยันการลบข้อมูล</h5>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-exclamation-triangle"></i> คำเตือน!</h6>
+                    <p>การดำเนินการนี้จะลบข้อมูลอย่างถาวร และไม่สามารถกู้คืนได้</p>
+                </div>
+                
+                <p><strong>ข้อมูลที่จะลบ:</strong></p>
+                <ul id="purge-summary">
+                    <!-- จะถูกเติมด้วย JavaScript -->
+                </ul>
+                
+                <div class="form-group">
+                    <label>พิมพ์ "DELETE" เพื่อยืนยัน:</label>
+                    <input type="text" id="delete-confirmation" class="form-control" 
+                           placeholder="พิมพ์ DELETE">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    ยกเลิก
+                </button>
+                <button onclick="executePurge()" class="btn btn-danger" 
+                        id="confirm-delete-btn" disabled>
+                    ลบข้อมูลถาวร
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+```
+
+### JavaScript Functions
+
+```javascript
+// เปิดใช้งานปุ่มลบเมื่อ checkbox ถูกเลือก
+document.getElementById('confirm-purge').addEventListener('change', function() {
+    document.getElementById('purge-btn').disabled = !this.checked;
+});
+
+// แสดง Modal ยืนยัน
+function showPurgeConfirmation() {
+    const beforeDate = document.getElementById('purge-before-date').value;
+    const summary = document.getElementById('purge-summary');
+    
+    if (beforeDate) {
+        summary.innerHTML = `
+            <li>ข้อมูลการสั่งซื้อก่อนวันที่ ${beforeDate}</li>
+            <li>ไฟล์ PDF ที่เกี่ยวข้อง</li>
+            <li>Download tokens ที่หมดอายุ</li>
+            <li>เลขอั้นทั้งหมด</li>
+        `;
+    } else {
+        summary.innerHTML = `
+            <li>ข้อมูลการสั่งซื้อทั้งหมด</li>
+            <li>ไฟล์ PDF ทั้งหมด</li>
+            <li>Download tokens ทั้งหมด</li>
+            <li>เลขอั้นทั้งหมด</li>
+            <li>สรุปยอดรวมทั้งหมด</li>
+        `;
+    }
+    
+    $('#purgeConfirmModal').modal('show');
+}
+
+// เปิดใช้งานปุ่มยืนยันเมื่อพิมพ์ DELETE
+document.getElementById('delete-confirmation').addEventListener('input', function() {
+    const confirmBtn = document.getElementById('confirm-delete-btn');
+    confirmBtn.disabled = this.value !== 'DELETE';
+});
+
+// ดำเนินการลบข้อมูล
+async function executePurge() {
+    const beforeDate = document.getElementById('purge-before-date').value;
+    const confirmBtn = document.getElementById('confirm-delete-btn');
+    
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังลบ...';
+    
+    try {
+        const response = await fetch('/admin/purge-data', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            },
+            body: JSON.stringify({
+                before_date: beforeDate || null
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            $('#purgeConfirmModal').modal('hide');
+            showSuccessMessage(result.message);
+            location.reload(); // รีโหลดหน้าเพื่ออัพเดทสถิติ
+        } else {
+            throw new Error(result.error);
+        }
+        
+    } catch (error) {
+        alert('เกิดข้อผิดพลาด: ' + error.message);
+    } finally {
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = 'ลบข้อมูลถาวร';
+    }
+}
+```
+
+### Backend Implementation
+
+**Flask Route:**
+```python
+@app.route('/admin/purge-data', methods=['POST'])
+@login_required
+@admin_required
+def purge_data():
+    """ลบข้อมูลการสั่งซื้อทั้งหมด"""
+    
+    if current_user.role != 'admin':
+        abort(403)
+    
+    data = request.get_json()
+    before_date = data.get('before_date')
+    
+    try:
+        # บันทึก log ก่อนลบ
+        log_purge_operation(current_user.id, before_date)
+        
+        # ดำเนินการลบข้อมูล
+        result = execute_data_purge(before_date)
+        
+        return jsonify({
+            'success': True,
+            'message': f'ลบข้อมูลเสร็จสิ้น: {result["summary"]}',
+            'details': result
+        })
+        
+    except Exception as e:
+        logger.error(f"Data purge failed: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'เกิดข้อผิดพลาดในการลบข้อมูล'
+        }), 500
+
+def execute_data_purge(before_date=None):
+    """ดำเนินการลบข้อมูล"""
+    
+    deleted_counts = {
+        'orders': 0,
+        'order_items': 0,
+        'download_tokens': 0,
+        'number_totals': 0,
+        'blocked_numbers': 0,
+        'pdf_files': 0,
+        'total_size_mb': 0
+    }
+    
+    try:
+        # เริ่ม transaction
+        db.session.begin()
+        
+        if before_date:
+            # ลบข้อมูลก่อนวันที่ที่กำหนด
+            orders_to_delete = db.session.query(Order).filter(
+                Order.created_at < before_date
+            ).all()
+        else:
+            # ลบข้อมูลทั้งหมด
+            orders_to_delete = db.session.query(Order).all()
+        
+        # เก็บ PDF paths ก่อนลบ
+        pdf_paths = []
+        for order in orders_to_delete:
+            if order.pdf_path and os.path.exists(order.pdf_path):
+                pdf_paths.append(order.pdf_path)
+        
+        # ลบข้อมูลจากฐานข้อมูล
+        if before_date:
+            # ลบ order_items
+            deleted_counts['order_items'] = db.session.execute(
+                "DELETE FROM order_items WHERE order_id IN "
+                "(SELECT id FROM orders WHERE created_at < ?)",
+                (before_date,)
+            ).rowcount
+            
+            # ลบ orders
+            deleted_counts['orders'] = db.session.execute(
+                "DELETE FROM orders WHERE created_at < ?",
+                (before_date,)
+            ).rowcount
+            
+            # ลบ download_tokens ที่หมดอายุ
+            deleted_counts['download_tokens'] = db.session.execute(
+                "DELETE FROM download_tokens WHERE expires_at < ?",
+                (datetime.now(),)
+            ).rowcount
+            
+        else:
+            # ลบทั้งหมด
+            deleted_counts['order_items'] = db.session.execute(
+                "DELETE FROM order_items"
+            ).rowcount
+            
+            deleted_counts['orders'] = db.session.execute(
+                "DELETE FROM orders"
+            ).rowcount
+            
+            deleted_counts['download_tokens'] = db.session.execute(
+                "DELETE FROM download_tokens"
+            ).rowcount
+            
+            deleted_counts['number_totals'] = db.session.execute(
+                "DELETE FROM number_totals"
+            ).rowcount
+            
+            deleted_counts['blocked_numbers'] = db.session.execute(
+                "DELETE FROM blocked_numbers"
+            ).rowcount
+        
+        # Commit database changes
+        db.session.commit()
+        
+        # ลบไฟล์ PDF
+        total_size = 0
+        for pdf_path in pdf_paths:
+            try:
+                file_size = os.path.getsize(pdf_path)
+                os.remove(pdf_path)
+                deleted_counts['pdf_files'] += 1
+                total_size += file_size
+            except OSError:
+                pass  # ไฟล์อาจถูกลบไปแล้ว
+        
+        deleted_counts['total_size_mb'] = round(total_size / (1024 * 1024), 2)
+        
+        # ลบโฟลเดอร์ว่างเปล่า
+        cleanup_empty_directories('static/receipts')
+        
+        # สร้างสรุปผลลัพธ์
+        summary = f"ลบ {deleted_counts['orders']} รายการสั่งซื้อ, " \
+                 f"{deleted_counts['pdf_files']} ไฟล์ PDF, " \
+                 f"{deleted_counts['blocked_numbers']} เลขอั้น " \
+                 f"({deleted_counts['total_size_mb']} MB)"
+        
+        deleted_counts['summary'] = summary
+        
+        return deleted_counts
+        
+    except Exception as e:
+        db.session.rollback()
+        raise e
+
+def cleanup_empty_directories(root_dir):
+    """ลบโฟลเดอร์ว่างเปล่า"""
+    for dirpath, dirnames, filenames in os.walk(root_dir, topdown=False):
+        if not filenames and not dirnames and dirpath != root_dir:
+            try:
+                os.rmdir(dirpath)
+            except OSError:
+                pass
+
+def log_purge_operation(admin_id, before_date):
+    """บันทึก log การลบข้อมูล"""
+    logger = logging.getLogger('data_purge')
+    
+    if before_date:
+        message = f"Admin {admin_id} initiated data purge before {before_date}"
+    else:
+        message = f"Admin {admin_id} initiated complete data purge"
+    
+    logger.warning(message)
+    
+    # บันทึกลงไฟล์ log พิเศษ
+    with open('logs/data_purge.log', 'a') as f:
+        timestamp = datetime.now().isoformat()
+        f.write(f"{timestamp} - {message}\n")
+```
+
+### การป้องกันและความปลอดภัย
+
+**1. Multiple Confirmations:**
+- Checkbox ยืนยันความเข้าใจ
+- Modal ยืนยันอีกครั้ง
+- พิมพ์ "DELETE" เพื่อยืนยัน
+
+**2. Admin Only Access:**
+```python
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated_function
+```
+
+**3. Comprehensive Logging:**
+- บันทึกทุกการดำเนินการลบ
+- เก็บ log ในไฟล์แยก
+- ระบุ Admin ที่ทำการลบ
+
+**4. Transaction Safety:**
+- ใช้ database transaction
+- Rollback หากเกิดข้อผิดพลาด
+- ตรวจสอบความสมบูรณ์ของข้อมูล
+
+### การแสดงสถิติก่อนลบ
+
+```python
+@app.route('/admin/data-stats')
+@login_required
+@admin_required
+def get_data_stats():
+    """ดึงสถิติข้อมูลสำหรับแสดงผล"""
+    
+    stats = {
+        'total_orders': db.session.query(Order).count(),
+        'total_order_items': db.session.query(OrderItem).count(),
+        'total_blocked': db.session.query(BlockedNumber).count(),
+        'total_pdfs': count_pdf_files(),
+        'total_size_mb': calculate_pdf_size(),
+        'date_range': get_date_range(),
+        'oldest_order': get_oldest_order_date(),
+        'newest_order': get_newest_order_date()
+    }
+    
+    return jsonify(stats)
+
+def count_pdf_files():
+    """นับจำนวนไฟล์ PDF"""
+    count = 0
+    for root, dirs, files in os.walk('static/receipts'):
+        count += len([f for f in files if f.endswith('.pdf')])
+    return count
+
+def calculate_pdf_size():
+    """คำนวณขนาดไฟล์ PDF ทั้งหมด"""
+    total_size = 0
+    for root, dirs, files in os.walk('static/receipts'):
+        for file in files:
+            if file.endswith('.pdf'):
+                file_path = os.path.join(root, file)
+                try:
+                    total_size += os.path.getsize(file_path)
+                except OSError:
+                    pass
+    return round(total_size / (1024 * 1024), 2)
+```
+
