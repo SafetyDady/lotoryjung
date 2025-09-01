@@ -697,8 +697,8 @@ ORDER BY revenue_today DESC;
 ### กฎการคำนวณ
 หวยออกทุกวันที่ 1 และ 16 ของเดือน การคำนวณงวดวันที่จะขึ้นอยู่กับวันที่สั่งซื้อ:
 
-- **วันที่ 1-15 ของเดือน** → งวดวันที่ 16 ของเดือนเดียวกัน
-- **วันที่ 16-31 ของเดือน** → งวดวันที่ 1 ของเดือนถัดไป
+- **วันที่ 1-16 ของเดือน** → งวดวันที่ 16 ของเดือนเดียวกัน
+- **วันที่ 17-31 ของเดือน** → งวดวันที่ 1 ของเดือนถัดไป
 
 ### ตัวอย่างการคำนวณ
 
@@ -706,7 +706,8 @@ ORDER BY revenue_today DESC;
 |---------------|-----------|
 | 5 กันยายน 2568 | 16 กันยายน 2568 |
 | 15 กันยายน 2568 | 16 กันยายน 2568 |
-| 16 กันยายน 2568 | 1 ตุลาคม 2568 |
+| 16 กันยายน 2568 | 16 กันยายน 2568 |
+| 17 กันยายน 2568 | 1 ตุลาคม 2568 |
 | 25 กันยายน 2568 | 1 ตุลาคม 2568 |
 | 31 ธันวาคม 2568 | 1 มกราคม 2569 |
 
@@ -728,7 +729,7 @@ def calculate_lottery_period(order_date):
     """
     day = order_date.day
     
-    if day <= 15:
+    if day <= 16:
         # งวดวันที่ 16 ของเดือนเดียวกัน
         return date(order_date.year, order_date.month, 16)
     else:
@@ -737,7 +738,7 @@ def calculate_lottery_period(order_date):
         return date(next_month.year, next_month.month, 1)
 
 # ตัวอย่างการใช้งาน
-order_date = date(2024, 9, 5)  # 5 กันยายน 2568
+order_date = date(2024, 9, 16)  # 16 กันยายน 2568
 lottery_period = calculate_lottery_period(order_date)
 print(f"สั่งซื้อวันที่: {order_date}")
 print(f"งวดวันที่: {lottery_period}")  # 16 กันยายน 2568
@@ -751,7 +752,7 @@ CREATE VIEW lottery_period_calculator AS
 SELECT 
     DATE('now') as order_date,
     CASE 
-        WHEN CAST(strftime('%d', DATE('now')) AS INTEGER) <= 15 THEN
+        WHEN CAST(strftime('%d', DATE('now')) AS INTEGER) <= 16 THEN
             DATE(strftime('%Y-%m-16', DATE('now')))
         ELSE
             DATE(strftime('%Y-%m-01', DATE('now', '+1 month')))
@@ -761,7 +762,7 @@ SELECT
 SELECT 
     order_date,
     CASE 
-        WHEN CAST(strftime('%d', order_date) AS INTEGER) <= 15 THEN
+        WHEN CAST(strftime('%d', order_date) AS INTEGER) <= 16 THEN
             DATE(strftime('%Y-%m-16', order_date))
         ELSE
             DATE(strftime('%Y-%m-01', order_date, '+1 month'))
