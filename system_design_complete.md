@@ -489,36 +489,93 @@ def generate_pdf_receipt(order_data, user_id):
     return pdf_path, order_number
 ```
 
-### การเข้าถึงไฟล์ PDF
+### การเข้าถึงไฟล์ PDF (Secure Access)
+
+**ระบบความปลอดภัย:**
+- **Authentication Required**: ต้อง login ถึงจะเข้าถึงได้
+- **Indirect Access**: ไม่เปิดเผย path จริงของไฟล์
+- **Token-based**: ใช้ temporary token สำหรับดาวน์โหลด
+- **Time-limited**: Token หมดอายุใน 1 ชั่วโมง
 
 **สิทธิ์การเข้าถึง:**
 - **User**: เห็นเฉพาะ PDF ของตนเองเท่านั้น
 - **Admin**: เห็น PDF ของทุกคนได้
 
-**URL Pattern:**
+**Secure URL Pattern:**
 ```
-GET /download/receipt/{order_id}
-- ตรวจสอบสิทธิ์ User
-- ตรวจสอบว่า Order เป็นของ User นั้น
-- ส่งไฟล์ PDF กลับไป
+GET /secure/download/{token}
+- ไม่เปิดเผย order_id หรือ file path
+- ใช้ temporary token แทน
+- Token หมดอายุอัตโนมัติ
+```
+
+**Token Generation Process:**
+```python
+import secrets
+import hashlib
+from datetime import datetime, timedelta
+
+def generate_download_token(order_id, user_id):
+    # สร้าง unique token
+    timestamp = datetime.now().isoformat()
+    random_string = secrets.token_urlsafe(32)
+    token_data = f"{order_id}:{user_id}:{timestamp}:{random_string}"
+    
+    # Hash เพื่อความปลอดภัย
+    token = hashlib.sha256(token_data.encode()).hexdigest()
+    
+    # เก็บ token ในฐานข้อมูลพร้อม expiry
+    expiry = datetime.now() + timedelta(hours=1)
+    save_download_token(token, order_id, user_id, expiry)
+    
+    return token
 ```
 
 **Flask Route ตัวอย่าง:**
 ```python
-@app.route('/download/receipt/<int:order_id>')
+@app.route('/generate-download-link/<int:order_id>')
 @login_required
-def download_receipt(order_id):
+def generate_download_link(order_id):
     order = Order.query.get_or_404(order_id)
     
     # ตรวจสอบสิทธิ์
     if current_user.role != 'admin' and order.user_id != current_user.id:
         abort(403)
     
-    # ส่งไฟล์
-    return send_file(order.pdf_path, as_attachment=True)
+    # สร้าง secure token
+    token = generate_download_token(order_id, current_user.id)
+    
+    return jsonify({
+        'download_url': f'/secure/download/{token}',
+        'expires_in': 3600  # 1 hour
+    })
+
+@app.route('/secure/download/<token>')
+@login_required
+def secure_download(token):
+    # ตรวจสอบ token
+    token_data = verify_download_token(token, current_user.id)
+    if not token_data:
+        abort(404)  # ไม่บอกว่า token หมดอายุ
+    
+    order = Order.query.get_or_404(token_data['order_id'])
+    
+    # ตรวจสอบสิทธิ์อีกครั้ง
+    if current_user.role != 'admin' and order.user_id != current_user.id:
+        abort(403)
+    
+    # ลบ token หลังใช้งาน (one-time use)
+    delete_download_token(token)
+    
+    # ส่งไฟล์โดยไม่เปิดเผย path
+    return send_file(
+        order.pdf_path, 
+        as_attachment=True,
+        download_name=f"{order.order_number}.pdf"
+    )
 ```
 
-### การแสดงผลใน UI
+### การแสดงผลใน UI (Secure Download)
 
 **ในหน้า User Dashboard:**
 ```html
@@ -539,16 +596,44 @@ def download_receipt(order_id):
             <td>{{ order.lottery_period.strftime('%d/%m/%Y') }}</td>
             <td>{{ order.total_amount }} บาท</td>
             <td>
-                <a href="/download/receipt/{{ order.id }}" 
-                   class="btn btn-sm btn-primary">
+                <button onclick="downloadPDF({{ order.id }})" 
+                        class="btn btn-sm btn-primary">
                     <i class="fas fa-download"></i> ดาวน์โหลด
-                </a>
+                </button>
             </td>
         </tr>
         {% endfor %}
     </table>
 </div>
+
+<script>
+async function downloadPDF(orderId) {
+    try {
+        // ขอ secure download link
+        const response = await fetch(`/generate-download-link/${orderId}`);
+        
+        if (!response.ok) {
+            throw new Error('ไม่สามารถสร้าง download link ได้');
+        }
+        
+        const data = await response.json();
+        
+        // เปิด download link ในหน้าต่างใหม่
+        window.open(data.download_url, '_blank');
+        
+    } catch (error) {
+        alert('เกิดข้อผิดพลาด: ' + error.message);
+    }
+}
+</script>
 ```
+
+**ข้อดีของระบบนี้:**
+1. **ไม่เปิดเผย file path**: User ไม่รู้ว่าไฟล์อยู่ที่ไหน
+2. **Token-based**: ใช้ token แทน direct link
+3. **Time-limited**: Token หมดอายุอัตโนมัติ
+4. **One-time use**: Token ใช้ได้ครั้งเดียว
+5. **Double authentication**: ตรวจสอบสิทธิ์ 2 ครั้ง
 
 ### การสำรองข้อมูล (Backup)
 
@@ -608,5 +693,189 @@ def check_storage_usage():
             total_size += os.path.getsize(filepath)
     
     return total_size / (1024 * 1024)  # MB
+```
+
+
+### Database Schema สำหรับ Download Tokens
+
+**ตาราง download_tokens:**
+```sql
+CREATE TABLE download_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token VARCHAR(64) UNIQUE NOT NULL,
+    order_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    expires_at DATETIME NOT NULL,
+    used_at DATETIME NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Indexes
+CREATE INDEX idx_download_tokens_token ON download_tokens(token);
+CREATE INDEX idx_download_tokens_expires_at ON download_tokens(expires_at);
+CREATE INDEX idx_download_tokens_order_id ON download_tokens(order_id);
+```
+
+**Helper Functions:**
+```python
+def save_download_token(token, order_id, user_id, expiry):
+    """บันทึก download token ลงฐานข้อมูล"""
+    db.session.execute(
+        "INSERT INTO download_tokens (token, order_id, user_id, expires_at) "
+        "VALUES (?, ?, ?, ?)",
+        (token, order_id, user_id, expiry)
+    )
+    db.session.commit()
+
+def verify_download_token(token, user_id):
+    """ตรวจสอบ download token"""
+    result = db.session.execute(
+        "SELECT order_id, user_id, expires_at, used_at "
+        "FROM download_tokens "
+        "WHERE token = ? AND user_id = ?",
+        (token, user_id)
+    ).fetchone()
+    
+    if not result:
+        return None
+    
+    # ตรวจสอบว่าหมดอายุหรือไม่
+    if datetime.now() > result['expires_at']:
+        return None
+    
+    # ตรวจสอบว่าใช้แล้วหรือไม่
+    if result['used_at']:
+        return None
+    
+    return {
+        'order_id': result['order_id'],
+        'user_id': result['user_id']
+    }
+
+def delete_download_token(token):
+    """ลบ token หลังใช้งาน"""
+    db.session.execute(
+        "UPDATE download_tokens SET used_at = ? WHERE token = ?",
+        (datetime.now(), token)
+    )
+    db.session.commit()
+
+def cleanup_expired_tokens():
+    """ลบ token ที่หมดอายุ (รันเป็น cron job)"""
+    db.session.execute(
+        "DELETE FROM download_tokens WHERE expires_at < ?",
+        (datetime.now(),)
+    )
+    db.session.commit()
+```
+
+### การป้องกันการโจมตี (Security Measures)
+
+**1. Rate Limiting:**
+```python
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
+limiter = Limiter(
+    app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"]
+)
+
+@app.route('/generate-download-link/<int:order_id>')
+@limiter.limit("10 per minute")  # จำกัดการขอ token
+@login_required
+def generate_download_link(order_id):
+    # ... code ...
+```
+
+**2. Token Validation:**
+```python
+def is_valid_token_format(token):
+    """ตรวจสอบรูปแบบ token"""
+    import re
+    # Token ต้องเป็น hex string ยาว 64 ตัวอักษร
+    return bool(re.match(r'^[a-f0-9]{64}$', token))
+
+@app.route('/secure/download/<token>')
+@login_required
+def secure_download(token):
+    # ตรวจสอบรูปแบบ token ก่อน
+    if not is_valid_token_format(token):
+        abort(404)
+    
+    # ... rest of code ...
+```
+
+**3. Logging และ Monitoring:**
+```python
+import logging
+
+def log_download_attempt(user_id, order_id, token, success=True):
+    """บันทึก log การดาวน์โหลด"""
+    logger = logging.getLogger('download_security')
+    
+    if success:
+        logger.info(f"Download success: user={user_id}, order={order_id}")
+    else:
+        logger.warning(f"Download failed: user={user_id}, token={token[:8]}...")
+
+# ใน secure_download function
+@app.route('/secure/download/<token>')
+@login_required
+def secure_download(token):
+    try:
+        # ... validation code ...
+        log_download_attempt(current_user.id, order.id, token, True)
+        return send_file(...)
+    except Exception as e:
+        log_download_attempt(current_user.id, None, token, False)
+        abort(404)
+```
+
+**4. Additional Security Headers:**
+```python
+@app.after_request
+def add_security_headers(response):
+    """เพิ่ม security headers"""
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    return response
+```
+
+### การทดสอบระบบ (Testing)
+
+**Unit Tests:**
+```python
+def test_generate_download_token():
+    """ทดสอบการสร้าง token"""
+    token = generate_download_token(1, 1)
+    assert len(token) == 64
+    assert is_valid_token_format(token)
+
+def test_token_expiry():
+    """ทดสอบการหมดอายุของ token"""
+    # สร้าง token ที่หมดอายุแล้ว
+    expired_token = create_expired_token()
+    result = verify_download_token(expired_token, 1)
+    assert result is None
+
+def test_one_time_use():
+    """ทดสอบการใช้ token ครั้งเดียว"""
+    token = generate_download_token(1, 1)
+    
+    # ใช้ครั้งแรก - ควรสำเร็จ
+    result1 = verify_download_token(token, 1)
+    assert result1 is not None
+    
+    delete_download_token(token)
+    
+    # ใช้ครั้งที่สอง - ควรล้มเหลว
+    result2 = verify_download_token(token, 1)
+    assert result2 is None
 ```
 
