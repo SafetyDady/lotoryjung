@@ -418,3 +418,195 @@ GROUP BY o.lottery_period, oi.number
 ORDER BY total_bet DESC;
 ```
 
+
+## 17. การจัดการไฟล์ PDF (PDF File Management)
+
+### โครงสร้างการเก็บไฟล์
+
+```
+project_root/
+├── static/
+│   └── receipts/
+│       ├── user_1/
+│       │   ├── ORD20240901143025.pdf
+│       │   ├── ORD20240902150130.pdf
+│       │   └── ...
+│       ├── user_2/
+│       │   ├── ORD20240901144512.pdf
+│       │   └── ...
+│       └── admin/
+│           ├── daily_reports/
+│           └── monthly_reports/
+```
+
+### รูปแบบการตั้งชื่อไฟล์
+
+**ไฟล์ PDF ใบสั่งซื้อ:**
+- **รูปแบบ**: `{order_number}.pdf`
+- **ตัวอย่าง**: `ORD20240901143025.pdf`
+- **Path เต็ม**: `/static/receipts/{user_id}/ORD20240901143025.pdf`
+
+**Order Number Format:**
+- **รูปแบบ**: `ORD{YYYYMMDD}{HHMMSS}`
+- **ORD**: คำนำหน้าคงที่
+- **YYYYMMDD**: ปี-เดือน-วัน (8 หลัก)
+- **HHMMSS**: ชั่วโมง-นาที-วินาที (6 หลัก)
+
+### การสร้างและเก็บ PDF
+
+**ขั้นตอนการสร้าง:**
+1. User กด "สั่งซื้อ" หลังตรวจสอบราคาแล้ว
+2. ระบบสร้าง Order Number อัตโนมัติ
+3. บันทึกข้อมูลลงฐานข้อมูล
+4. สร้างไฟล์ PDF จากข้อมูล Order
+5. เก็บไฟล์ในโฟลเดอร์ของ User
+6. บันทึก PDF path ลงฐานข้อมูล
+7. ส่ง Download link ให้ User
+
+**Python Code ตัวอย่าง:**
+```python
+import os
+from datetime import datetime
+from reportlab.pdfgen import canvas
+
+def generate_pdf_receipt(order_data, user_id):
+    # สร้าง order number
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    order_number = f"ORD{timestamp}"
+    
+    # สร้าง directory ถ้ายังไม่มี
+    user_dir = f"static/receipts/{user_id}"
+    os.makedirs(user_dir, exist_ok=True)
+    
+    # path ของไฟล์ PDF
+    pdf_path = f"{user_dir}/{order_number}.pdf"
+    
+    # สร้าง PDF
+    c = canvas.Canvas(pdf_path)
+    # ... เขียนข้อมูลลง PDF ...
+    c.save()
+    
+    return pdf_path, order_number
+```
+
+### การเข้าถึงไฟล์ PDF
+
+**สิทธิ์การเข้าถึง:**
+- **User**: เห็นเฉพาะ PDF ของตนเองเท่านั้น
+- **Admin**: เห็น PDF ของทุกคนได้
+
+**URL Pattern:**
+```
+GET /download/receipt/{order_id}
+- ตรวจสอบสิทธิ์ User
+- ตรวจสอบว่า Order เป็นของ User นั้น
+- ส่งไฟล์ PDF กลับไป
+```
+
+**Flask Route ตัวอย่าง:**
+```python
+@app.route('/download/receipt/<int:order_id>')
+@login_required
+def download_receipt(order_id):
+    order = Order.query.get_or_404(order_id)
+    
+    # ตรวจสอบสิทธิ์
+    if current_user.role != 'admin' and order.user_id != current_user.id:
+        abort(403)
+    
+    # ส่งไฟล์
+    return send_file(order.pdf_path, as_attachment=True)
+```
+
+### การแสดงผลใน UI
+
+**ในหน้า User Dashboard:**
+```html
+<div class="order-history">
+    <h3>รายการสั่งซื้อ</h3>
+    <table>
+        <tr>
+            <th>เลขที่</th>
+            <th>วันที่</th>
+            <th>งวด</th>
+            <th>ยอดรวม</th>
+            <th>ใบสั่งซื้อ</th>
+        </tr>
+        {% for order in orders %}
+        <tr>
+            <td>{{ order.order_number }}</td>
+            <td>{{ order.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+            <td>{{ order.lottery_period.strftime('%d/%m/%Y') }}</td>
+            <td>{{ order.total_amount }} บาท</td>
+            <td>
+                <a href="/download/receipt/{{ order.id }}" 
+                   class="btn btn-sm btn-primary">
+                    <i class="fas fa-download"></i> ดาวน์โหลด
+                </a>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+```
+
+### การสำรองข้อมูล (Backup)
+
+**กลยุทธ์การสำรอง:**
+1. **Daily Backup**: สำรอง PDF files ทุกวัน
+2. **Weekly Full Backup**: สำรองทั้งหมดทุกสัปดาห์
+3. **Cloud Backup**: อัพโหลดไป Cloud storage (อนาคต)
+
+**Backup Script ตัวอย่าง:**
+```bash
+#!/bin/bash
+# backup_pdfs.sh
+
+DATE=$(date +%Y%m%d)
+BACKUP_DIR="/backup/pdfs/$DATE"
+SOURCE_DIR="/app/static/receipts"
+
+# สร้าง backup directory
+mkdir -p $BACKUP_DIR
+
+# สำรองไฟล์
+tar -czf "$BACKUP_DIR/receipts_$DATE.tar.gz" -C $SOURCE_DIR .
+
+# ลบ backup เก่าที่เก็บไว้เกิน 30 วัน
+find /backup/pdfs -name "*.tar.gz" -mtime +30 -delete
+```
+
+### การจัดการพื้นที่เก็บข้อมูล
+
+**การประมาณขนาด:**
+- PDF ใบสั่งซื้อ: ~50-100 KB ต่อไฟล์
+- 100 orders/วัน = ~5-10 MB/วัน
+- 1 ปี = ~1.8-3.6 GB
+
+**การทำความสะอาด:**
+- เก็บ PDF ไว้ 2 ปี
+- หลัง 2 ปี ย้ายไป Archive storage
+- ลบไฟล์ที่เสียหายหรือไม่สมบูรณ์
+
+### การแก้ไขปัญหา (Troubleshooting)
+
+**ปัญหาที่อาจเกิด:**
+1. **ไฟล์ PDF หาย**: ตรวจสอบ backup และ restore
+2. **Permission Error**: ตรวจสอบสิทธิ์โฟลเดอร์
+3. **Disk Full**: ทำความสะอาดไฟล์เก่า
+4. **PDF เสียหาย**: สร้างใหม่จากข้อมูลในฐานข้อมูล
+
+**Monitoring:**
+```python
+# ตรวจสอบขนาดโฟลเดอร์
+def check_storage_usage():
+    receipts_dir = "static/receipts"
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(receipts_dir):
+        for filename in filenames:
+            filepath = os.path.join(dirpath, filename)
+            total_size += os.path.getsize(filepath)
+    
+    return total_size / (1024 * 1024)  # MB
+```
+
