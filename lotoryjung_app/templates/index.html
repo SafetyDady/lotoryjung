@@ -1,0 +1,247 @@
+{% extends "shared/base.html" %}
+
+{% block title %}หน้าแรก - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Hero Section -->
+        <div class="card bg-primary text-white mb-4">
+            <div class="card-body text-center py-5">
+                <h1 class="display-4 mb-3">
+                    <i class="fas fa-dice me-3"></i>
+                    ระบบรวบรวมข้อมูลการทายเลข
+                </h1>
+                <p class="lead mb-4">
+                    ระบบจัดการการสั่งซื้อหวยที่ทันสมัย ปลอดภัย และใช้งานง่าย
+                </p>
+                {% if not current_user.is_authenticated %}
+                <div class="d-flex justify-content-center gap-3">
+                    <a href="{{ url_for('auth.login') }}" class="btn btn-light btn-lg">
+                        <i class="fas fa-sign-in-alt me-2"></i>
+                        เข้าสู่ระบบ
+                    </a>
+                    <a href="{{ url_for('auth.login') }}" class="btn btn-outline-light btn-lg">
+                        <i class="fas fa-user-plus me-2"></i>
+                        สมัครสมาชิก
+                    </a>
+                </div>
+                {% else %}
+                <a href="{{ url_for('user.dashboard') }}" class="btn btn-light btn-lg">
+                    <i class="fas fa-tachometer-alt me-2"></i>
+                    ไปยังหน้าหลัก
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Features Section -->
+<div class="row mb-5">
+    <div class="col-12">
+        <h2 class="text-center mb-4">คุณสมบัติเด่น</h2>
+    </div>
+    
+    <div class="col-lg-4 col-md-6 mb-4">
+        <div class="card h-100 text-center">
+            <div class="card-body">
+                <div class="text-primary mb-3">
+                    <i class="fas fa-shield-alt fa-3x"></i>
+                </div>
+                <h5 class="card-title">ปลอดภัยสูง</h5>
+                <p class="card-text">
+                    ระบบรักษาความปลอดภัยระดับ Enterprise พร้อม Audit Logging 
+                    และการเข้ารหัสข้อมูลทุกขั้นตอน
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 col-md-6 mb-4">
+        <div class="card h-100 text-center">
+            <div class="card-body">
+                <div class="text-success mb-3">
+                    <i class="fas fa-clock fa-3x"></i>
+                </div>
+                <h5 class="card-title">Real-time</h5>
+                <p class="card-text">
+                    ระบบประมวลผลแบบ Real-time พร้อมการแจ้งเตือนทันที 
+                    และการอัพเดทข้อมูลแบบสด
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 col-md-6 mb-4">
+        <div class="card h-100 text-center">
+            <div class="card-body">
+                <div class="text-warning mb-3">
+                    <i class="fas fa-mobile-alt fa-3x"></i>
+                </div>
+                <h5 class="card-title">Responsive</h5>
+                <p class="card-text">
+                    ใช้งานได้บนทุกอุปกรณ์ ทั้งคอมพิวเตอร์ แท็บเล็ต และมือถือ 
+                    ด้วย UI ที่เป็นมิตรกับผู้ใช้
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 col-md-6 mb-4">
+        <div class="card h-100 text-center">
+            <div class="card-body">
+                <div class="text-info mb-3">
+                    <i class="fas fa-chart-line fa-3x"></i>
+                </div>
+                <h5 class="card-title">Analytics</h5>
+                <p class="card-text">
+                    รายงานและสถิติที่ครบถ้วน พร้อมการวิเคราะห์ข้อมูล
+                    เพื่อการตัดสินใจที่ดีขึ้น
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 col-md-6 mb-4">
+        <div class="card h-100 text-center">
+            <div class="card-body">
+                <div class="text-danger mb-3">
+                    <i class="fas fa-ban fa-3x"></i>
+                </div>
+                <h5 class="card-title">ระบบเลขอั้น</h5>
+                <p class="card-text">
+                    จัดการเลขอั้นและ Limit ได้อย่างยืดหยุน 
+                    พร้อมการแจ้งเตือนแบบ Real-time
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 col-md-6 mb-4">
+        <div class="card h-100 text-center">
+            <div class="card-body">
+                <div class="text-secondary mb-3">
+                    <i class="fas fa-file-pdf fa-3x"></i>
+                </div>
+                <h5 class="card-title">PDF Receipt</h5>
+                <p class="card-text">
+                    สร้างใบเสร็จ PDF แบบปลอดภัย พร้อมระบบ Download 
+                    ที่มีการควบคุมการเข้าถึง
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Current Lottery Period -->
+<div class="row mb-5">
+    <div class="col-12">
+        <div class="card bg-light">
+            <div class="card-body text-center">
+                <h3 class="mb-3">
+                    <i class="fas fa-calendar-alt me-2"></i>
+                    ข้อมูลงวดปัจจุบัน
+                </h3>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <div class="h5 text-primary">งวดวันที่</div>
+                        <div class="fs-4 fw-bold">16 กันยายน 2568</div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="h5 text-warning">เวลาปิดรับ</div>
+                        <div class="fs-4 fw-bold">15:30 น.</div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="h5 text-success">เวลาออกรางวัล</div>
+                        <div class="fs-4 fw-bold">16:00 น.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Demo Accounts (if not logged in) -->
+{% if not current_user.is_authenticated %}
+<div class="row">
+    <div class="col-12">
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    บัญชีทดสอบ
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-3">คุณสามารถทดลองใช้งานระบบได้ด้วยบัญชีทดสอบ:</p>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-title text-primary">
+                                    <i class="fas fa-user-shield me-2"></i>
+                                    Admin Account
+                                </h6>
+                                <p class="card-text">
+                                    <strong>Username:</strong> admin<br>
+                                    <strong>Password:</strong> admin123
+                                </p>
+                                <small class="text-muted">
+                                    สามารถเข้าถึงฟีเจอร์ Admin ทั้งหมด
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-title text-success">
+                                    <i class="fas fa-user me-2"></i>
+                                    User Account
+                                </h6>
+                                <p class="card-text">
+                                    <strong>Username:</strong> testuser<br>
+                                    <strong>Password:</strong> test123
+                                </p>
+                                <small class="text-muted">
+                                    บัญชีผู้ใช้ทั่วไปสำหรับทดสอบ
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Add smooth scrolling to anchor links
+    $('a[href^="#"]').on('click', function(event) {
+        var target = $(this.getAttribute('href'));
+        if (target.length) {
+            event.preventDefault();
+            $('html, body').stop().animate({
+                scrollTop: target.offset().top - 70
+            }, 1000);
+        }
+    });
+    
+    // Add animation to feature cards
+    $('.card').hover(
+        function() {
+            $(this).addClass('shadow-lg');
+        },
+        function() {
+            $(this).removeClass('shadow-lg');
+        }
+    );
+});
+</script>
+{% endblock %}
+

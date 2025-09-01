@@ -26,7 +26,10 @@ cors = CORS()
 socketio = SocketIO()
 
 def create_app(config_name='development'):
-    app = Flask(__name__)
+    # Create Flask app with explicit template and static folders
+    app = Flask(__name__, 
+                template_folder='../templates',
+                static_folder='../static')
     
     # Configuration
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')

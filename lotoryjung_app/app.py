@@ -114,6 +114,6 @@ def reset_db():
     print("Database reset complete!")
 
 if __name__ == '__main__':
-    # Run with SocketIO support
-    socketio.run(app, debug=True, host='0.0.0.0', port=5000)
+    # Run the application
+    socketio.run(app, host='0.0.0.0', port=5001, debug=True)
 

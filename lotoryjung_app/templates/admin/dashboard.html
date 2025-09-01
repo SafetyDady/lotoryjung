@@ -1,0 +1,331 @@
+{% extends "shared/base.html" %}
+
+{% block title %}Admin Dashboard - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>
+                <i class="fas fa-tachometer-alt me-2"></i>
+                Admin Dashboard
+            </h2>
+            <div class="d-flex gap-2">
+                <button class="btn btn-danger" onclick="showDataPurgeModal()">
+                    <i class="fas fa-trash me-2"></i>
+                    ลบข้อมูลทั้งหมด
+                </button>
+                <a href="#" class="btn btn-primary">
+                    <i class="fas fa-list me-2"></i>
+                    จัดการคำสั่งซื้อ
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="mb-0">{{ stats.total_orders or 0 }}</h4>
+                        <p class="mb-0">คำสั่งซื้อทั้งหมด</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-shopping-cart fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="mb-0">{{ stats.total_amount or 0 }}</h4>
+                        <p class="mb-0">ยอดขายรวม (บาท)</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-money-bill-wave fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="mb-0">{{ stats.blocked_numbers or 0 }}</h4>
+                        <p class="mb-0">เลขอั้น</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-ban fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="mb-0">{{ stats.active_users or 0 }}</h4>
+                        <p class="mb-0">ผู้ใช้งานทั้งหมด</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-users fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-bolt me-2"></i>
+                    การดำเนินการด่วน
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <a href="#" class="btn btn-outline-danger w-100">
+                            <i class="fas fa-ban me-2"></i>
+                            จัดการเลขอั้น
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="#" class="btn btn-outline-warning w-100">
+                            <i class="fas fa-limit me-2"></i>
+                            จัดการลิมิต
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="#" class="btn btn-outline-info w-100">
+                            <i class="fas fa-users me-2"></i>
+                            จัดการผู้ใช้
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="#" class="btn btn-outline-success w-100">
+                            <i class="fas fa-chart-bar me-2"></i>
+                            รายงาน
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Orders -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-clock me-2"></i>
+                    คำสั่งซื้อล่าสุด
+                </h5>
+                <a href="#" class="btn btn-sm btn-primary">
+                    ดูทั้งหมด
+                </a>
+            </div>
+            <div class="card-body">
+                {% if recent_orders %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>เลขที่คำสั่ง</th>
+                                <th>ลูกค้า</th>
+                                <th>ยอดรวม</th>
+                                <th>สถานะ</th>
+                                <th>วันที่</th>
+                                <th>การดำเนินการ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in recent_orders %}
+                            <tr>
+                                <td>
+                                    <strong>{{ order.order_number }}</strong>
+                                </td>
+                                <td>{{ order.customer_name }}</td>
+                                <td>
+                                    <span class="badge bg-success">
+                                        {{ order.total_amount }} บาท
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if order.status == 'completed' %}
+                                        <span class="badge bg-success">เสร็จสิ้น</span>
+                                    {% elif order.status == 'pending' %}
+                                        <span class="badge bg-warning">รอดำเนินการ</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ order.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ order.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="#" 
+                                           class="btn btn-outline-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        {% if order.pdf_path %}
+                                        <a href="#" 
+                                           class="btn btn-outline-success">
+                                            <i class="fas fa-file-pdf"></i>
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">ยังไม่มีคำสั่งซื้อ</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Data Purge Modal -->
+<div class="modal fade" id="dataPurgeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    ลบข้อมูลทั้งหมด
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <strong>คำเตือน!</strong> การดำเนินการนี้จะลบข้อมูลทั้งหมดและไม่สามารถกู้คืนได้
+                </div>
+                
+                <h6>ข้อมูลที่จะถูกลบ:</h6>
+                <ul>
+                    <li>คำสั่งซื้อทั้งหมด</li>
+                    <li>ไฟล์ PDF ทั้งหมด</li>
+                    <li>เลขอั้นทั้งหมด</li>
+                    <li>สรุปยอดรวม</li>
+                    <li>Log files</li>
+                </ul>
+                
+                <h6>ข้อมูลที่จะคงไว้:</h6>
+                <ul>
+                    <li>ข้อมูลผู้ใช้ (สำหรับ Login)</li>
+                    <li>ข้อมูล Limits</li>
+                </ul>
+                
+                <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox" id="confirmPurge">
+                    <label class="form-check-label" for="confirmPurge">
+                        ฉันเข้าใจและยืนยันที่จะลบข้อมูลทั้งหมด
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                <button type="button" class="btn btn-danger" id="executePurgeBtn" disabled>
+                    <i class="fas fa-trash me-2"></i>
+                    ลบข้อมูลทั้งหมด
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Enable/disable purge button based on checkbox
+    $('#confirmPurge').change(function() {
+        $('#executePurgeBtn').prop('disabled', !this.checked);
+    });
+    
+    // Execute data purge
+    $('#executePurgeBtn').click(function() {
+        const btn = $(this);
+        const originalText = btn.html();
+        
+        btn.prop('disabled', true)
+           .html('<span class="loading-spinner me-2"></span>กำลังลบข้อมูล...');
+        
+        $.ajax({
+            url: '#',
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': $('meta[name=csrf-token]').attr('content')
+            },
+            success: function(response) {
+                if (response.success) {
+                    showToast('สำเร็จ', response.message, 'success');
+                    $('#dataPurgeModal').modal('hide');
+                    // Reload page after 2 seconds
+                    setTimeout(function() {
+                        location.reload();
+                    }, 2000);
+                } else {
+                    showToast('ข้อผิดพลาด', response.message, 'error');
+                }
+            },
+            error: function(xhr) {
+                showToast('ข้อผิดพลาด', 'เกิดข้อผิดพลาดในการลบข้อมูล', 'error');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html(originalText);
+            }
+        });
+    });
+});
+
+function showDataPurgeModal() {
+    $('#dataPurgeModal').modal('show');
+}
+
+function showToast(title, message, type) {
+    // Simple toast implementation
+    const toast = $(`
+        <div class="toast align-items-center text-white bg-${type === 'success' ? 'success' : 'danger'} border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <strong>${title}:</strong> ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `);
+    
+    $('.toast-container').append(toast);
+    toast.toast('show');
+}
+</script>
+{% endblock %}
+

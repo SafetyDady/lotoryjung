@@ -1,0 +1,128 @@
+{% extends "shared/base.html" %}
+
+{% block title %}เข้าสู่ระบบ - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-4">
+        <div class="card shadow-lg">
+            <div class="card-header text-center">
+                <h4 class="mb-0">
+                    <i class="fas fa-sign-in-alt me-2"></i>
+                    เข้าสู่ระบบ
+                </h4>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" id="loginForm">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.username.label(class="form-label") }}
+                        {{ form.username(class="form-control form-control-lg", placeholder="ชื่อผู้ใช้") }}
+                        {% if form.username.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.username.errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.password.label(class="form-label") }}
+                        <div class="input-group">
+                            {{ form.password(class="form-control form-control-lg", placeholder="รหัสผ่าน", id="passwordInput") }}
+                            <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                <i class="fas fa-eye" id="togglePasswordIcon"></i>
+                            </button>
+                        </div>
+                        {% if form.password.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.password.errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-grid">
+                        {{ form.submit(class="btn btn-primary btn-lg", id="loginBtn") }}
+                    </div>
+                </form>
+                
+                <hr class="my-4">
+                
+                <div class="text-center">
+                    <p class="mb-0 text-muted">
+                        ใช้บัญชีทดสอบด้านล่างเพื่อเข้าสู่ระบบ
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Demo Accounts Info -->
+        <div class="card mt-3">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <i class="fas fa-info-circle me-2"></i>
+                    บัญชีทดสอบ
+                </h6>
+                <div class="row">
+                    <div class="col-6">
+                        <strong>Admin:</strong><br>
+                        <small class="text-muted">
+                            Username: admin<br>
+                            Password: admin123
+                        </small>
+                    </div>
+                    <div class="col-6">
+                        <strong>User:</strong><br>
+                        <small class="text-muted">
+                            Username: testuser<br>
+                            Password: test123
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Toggle password visibility
+    $('#togglePassword').click(function() {
+        const passwordInput = $('#passwordInput');
+        const toggleIcon = $('#togglePasswordIcon');
+        
+        if (passwordInput.attr('type') === 'password') {
+            passwordInput.attr('type', 'text');
+            toggleIcon.removeClass('fa-eye').addClass('fa-eye-slash');
+        } else {
+            passwordInput.attr('type', 'password');
+            toggleIcon.removeClass('fa-eye-slash').addClass('fa-eye');
+        }
+    });
+    
+    // Form submission with loading state
+    $('#loginForm').submit(function() {
+        const loginBtn = $('#loginBtn');
+        const originalText = loginBtn.text();
+        
+        loginBtn.prop('disabled', true)
+               .html('<span class="loading-spinner me-2"></span>กำลังเข้าสู่ระบบ...');
+        
+        // Re-enable button after 5 seconds (fallback)
+        setTimeout(function() {
+            loginBtn.prop('disabled', false).text(originalText);
+        }, 5000);
+    });
+    
+    // Auto-focus on username field
+    $('#username').focus();
+});
+</script>
+{% endblock %}
+

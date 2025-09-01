@@ -33,11 +33,16 @@ def dashboard():
     # Get recent audit logs
     recent_logs = AuditLog.query.order_by(AuditLog.created_at.desc()).limit(10).all()
     
+    # Prepare stats dictionary
+    stats = {
+        'total_orders': total_orders,
+        'total_amount': total_amount,
+        'blocked_numbers': BlockedNumber.query.count(),
+        'active_users': total_users
+    }
+    
     return render_template('admin/dashboard.html',
-                         total_users=total_users,
-                         total_orders=total_orders,
-                         total_amount=total_amount,
-                         pending_orders=pending_orders,
+                         stats=stats,
                          recent_orders=recent_orders,
                          recent_logs=recent_logs)
 
