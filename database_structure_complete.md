@@ -220,20 +220,22 @@ orders (1) ←→ (N) order_items
 ### 3.2 ER Diagram
 
 ```
-┌─────────────┐       ┌─────────────┐       ┌─────────────┐
-│    users    │ 1   N │   orders    │ 1   N │ order_items │
-├─────────────┤←──────├─────────────┤←──────├─────────────┤
-│ id (PK)     │       │ id (PK)     │       │ id (PK)     │
-│ name        │       │ order_number│       │ order_id(FK)│
-│ username    │       │ user_id(FK) │       │ number      │
-│ password_hash│       │ customer_name│       │ buy_2_top   │
-│ role        │       │ total_amount│       │ buy_2_bottom│
-│ is_active   │       │ status      │       │ buy_3_top   │
-│ created_at  │       │ pdf_path    │       │ buy_tote    │
-│ updated_at  │       │ notes       │       │ payout_*    │
-└─────────────┘       │ created_at  │       │ created_at  │
-                      │ updated_at  │       └─────────────┘
-                      └─────────────┘
+┌─────────────┐       ┌─────────────┐       ┌─────────────────┐
+│    users    │ 1   N │   orders    │ 1   N │  order_items    │
+├─────────────┤←──────├─────────────┤←──────├─────────────────┤
+│ id (PK)     │       │ id (PK)     │       │ id (PK)         │
+│ name        │       │ order_number│       │ order_id(FK)    │
+│ username    │       │ user_id(FK) │       │ number          │
+│ password_hash│       │ customer_name│       │ buy_2_top       │
+│ role        │       │ total_amount│       │ buy_2_bottom    │
+│ is_active   │       │ status      │       │ buy_3_top       │
+│ created_at  │       │ pdf_path    │       │ buy_tote        │
+│ updated_at  │       │ notes       │       │ payout_2_top    │
+└─────────────┘       │ created_at  │       │ payout_2_bottom │
+                      │ updated_at  │       │ payout_3_top    │
+                      └─────────────┘       │ payout_tote     │
+                                            │ created_at      │
+                                            └─────────────────┘
 
 ┌─────────────┐       ┌─────────────┐
 │   limits    │       │blocked_numbers│
