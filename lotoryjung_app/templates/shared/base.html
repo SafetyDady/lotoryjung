@@ -33,7 +33,7 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('user.orders') }}">
+                            <a class="nav-link" href="{{ url_for('user.new_order') }}">
                                 <i class="fas fa-plus-circle me-1"></i>สั่งซื้อ
                             </a>
                         </li>
@@ -74,6 +74,11 @@
                             </ul>
                         </li>
                     {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('auth.register') }}">
+                                <i class="fas fa-user-plus me-1"></i>สมัครสมาชิก
+                            </a>
+                        </li>
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('auth.login') }}">
                                 <i class="fas fa-sign-in-alt me-1"></i>เข้าสู่ระบบ

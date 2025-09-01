@@ -59,6 +59,32 @@ def create_app(config_name='development'):
         from app.models import User
         return User.query.get(int(user_id))
     
+    # Template context processors
+    @app.context_processor
+    def utility_processor():
+        from datetime import datetime
+        def current_lottery_period():
+            """Return current lottery period in Thai format"""
+            now = datetime.now()
+            return f"{now.day:02d}/{now.month:02d}/{now.year + 543}"
+        
+        def format_currency(amount):
+            """Format amount as Thai currency"""
+            return f"{amount:,.0f} บาท"
+        
+        def format_thai_date(date):
+            """Format date in Thai format"""
+            if date:
+                thai_year = date.year + 543
+                return f"{date.day:02d}/{date.month:02d}/{thai_year}"
+            return "-"
+        
+        return dict(
+            current_lottery_period=current_lottery_period,
+            format_currency=format_currency,
+            format_thai_date=format_thai_date
+        )
+
     # Register blueprints
     from app.routes.auth import auth_bp
     from app.routes.main import main_bp

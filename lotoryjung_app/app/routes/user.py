@@ -22,10 +22,26 @@ def dashboard():
     total_amount = db.session.query(db.func.sum(Order.total_amount))\
                             .filter_by(user_id=current_user.id).scalar() or 0
     
+    # Create stats object for template
+    stats = {
+        'total_orders': total_orders,
+        'total_amount': total_amount,
+        'pending_orders': Order.query.filter_by(user_id=current_user.id, status='pending').count(),
+        'completed_orders': Order.query.filter_by(user_id=current_user.id, status='completed').count()
+    }
+    
+    # Payout rates for display
+    payout_rates = {
+        '2_top': 90,
+        '2_bottom': 90,
+        '3_top': 900,
+        'tote': 150
+    }
+
     return render_template('user/dashboard.html', 
                          recent_orders=recent_orders,
-                         total_orders=total_orders,
-                         total_amount=total_amount)
+                         stats=stats,
+                         payout_rates=payout_rates)
 
 @user_bp.route('/orders')
 @login_required
