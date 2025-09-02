@@ -4,6 +4,8 @@ Number utilities for lottery number processing
 
 import re
 from typing import List, Tuple, Optional
+from itertools import permutations
+from datetime import datetime, date, timedelta
 
 def normalize_number(number: str, field: str) -> str:
     """
@@ -205,4 +207,229 @@ def generate_batch_id(lottery_period: date) -> str:
         Batch ID string
     """
     return lottery_period.strftime("%Y%m%d")
+
+
+def generate_2_digit_permutations(number):
+    """
+    Generate 2 permutations for 2-digit lottery numbers
+    
+    For 2-digit number like "13", creates:
+    [13, 31] - exactly 2 permutations (original and reverse)
+    """
+    if not number or len(str(number)) != 2:
+        return []
+    
+    num_str = str(number).zfill(2)
+    digit1, digit2 = num_str[0], num_str[1]
+    
+    permutations = []
+    
+    # Original number
+    permutations.append(num_str)
+    
+    # Reverse  
+    reversed_num = digit2 + digit1
+    if reversed_num != num_str:  # Only add if different
+        permutations.append(reversed_num)
+    
+    # If digits are the same, we only have 1 permutation
+    if digit1 == digit2:
+        return [num_str]
+    
+    return sorted(permutations)  # Return exactly 2 for different digits
+
+
+def generate_tote_number(number):
+    """
+    Generate tote number by sorting digits from smallest to largest
+    
+    Args:
+        number: 3-digit number string
+    
+    Returns:
+        Tote number string (digits sorted ascending)
+    
+    Examples:
+        365 → 356 (3 < 5 < 6)
+        157 → 157 (1 < 5 < 7) 
+        921 → 129 (1 < 2 < 9)
+    """
+    if not number or len(str(number)) != 3:
+        return number
+    
+    num_str = str(number).zfill(3)
+    digits = list(num_str)
+    digits.sort()  # Sort from smallest to largest
+    
+    return ''.join(digits)
+
+
+def generate_3_digit_permutations(number):
+    """
+    Generate 6 unique permutations for 3-digit lottery numbers (not including original)
+    
+    For 3-digit number like "157", creates:
+    [157, 175, 517, 571, 715, 751] - exactly 6 permutations
+    """
+    if not number or len(str(number)) != 3:
+        return []
+    
+    num_str = str(number).zfill(3)
+    digits = [num_str[0], num_str[1], num_str[2]]
+    
+    # Get all unique permutations
+    all_perms = set()
+    for perm in permutations(digits):
+        all_perms.add(''.join(perm))
+    
+    # Convert to sorted list - should naturally have 6 unique permutations for 3 different digits
+    perm_list = sorted(list(all_perms))
+    
+    # Return exactly 6 permutations
+    return perm_list[:6]
+
+
+def generate_blocked_numbers_for_field(number, field_type):
+    """
+    Generate all blocked number records for a given number and field type
+    
+    Args:
+        number: The input number (2 or 3 digits)
+        field_type: '2_top', '2_bottom', '3_top', 'tote'
+    
+    Returns:
+        List of dictionaries with number permutations
+    """
+    number_str = str(number).strip()
+    
+    if not number_str.isdigit():
+        return []
+    
+    records = []
+    
+    if field_type in ['2_top', '2_bottom'] and len(number_str) == 2:
+        # For 2-digit: Generate 2 permutations each for both 2_top and 2_bottom
+        permutations_list = generate_2_digit_permutations(number_str)
+        
+        # Add to 2_top field
+        for perm in permutations_list:
+            records.append({
+                'field': '2_top',
+                'number_norm': perm,  # Keep as 2-digit, no padding
+                'permutation_type': 'permutation',
+                'original_input': number_str
+            })
+        
+        # Add to 2_bottom field  
+        for perm in permutations_list:
+            records.append({
+                'field': '2_bottom',
+                'number_norm': perm,  # Keep as 2-digit, no padding
+                'permutation_type': 'permutation',
+                'original_input': number_str
+            })
+            
+    elif field_type in ['3_top', 'tote'] and len(number_str) == 3:
+        # For 3-digit: 6 permutations in 3_top + 1 tote = 7 records total
+        permutations_list = generate_3_digit_permutations(number_str)
+        
+        # First add 6 permutations to 3_top field
+        for perm in permutations_list[:6]:  # Take only 6 permutations
+            records.append({
+                'field': '3_top',
+                'number_norm': perm,
+                'permutation_type': 'permutation',
+                'original_input': number_str
+            })
+        
+        # Then add 1 tote record (sorted digits)
+        tote_number = generate_tote_number(number_str)
+        records.append({
+            'field': 'tote',
+            'number_norm': tote_number,
+            'permutation_type': 'tote',
+            'original_input': number_str
+        })
+    
+    return records
+
+
+def validate_bulk_numbers(numbers_data):
+    """
+    Validate bulk numbers input
+    
+    Args:
+        numbers_data: List of dicts with 'number' and 'field' keys
+    
+    Returns:
+        dict with 'valid', 'errors', 'summary' keys
+    """
+    errors = []
+    valid_numbers = []
+    stats = {'2_digit': 0, '3_digit': 0, 'total_records': 0}
+    
+    for i, item in enumerate(numbers_data):
+        if not item.get('number') or not item.get('field'):
+            continue
+            
+        number = str(item['number']).strip()
+        field = item['field']
+        
+        # Validate number format
+        if not number.isdigit():
+            errors.append(f'แถวที่ {i+1}: "{number}" ต้องเป็นตัวเลขเท่านั้น')
+            continue
+            
+        if len(number) < 2 or len(number) > 3:
+            errors.append(f'แถวที่ {i+1}: "{number}" ต้องเป็น 2-3 หลัก')
+            continue
+        
+        # Validate field compatibility
+        if len(number) == 2 and field not in ['2_top', '2_bottom']:
+            errors.append(f'แถวที่ {i+1}: เลข 2 หลัก "{number}" ใช้ได้เฉพาะ 2ตัวบน/2ตัวล่าง')
+            continue
+            
+        if len(number) == 3 and field not in ['3_top', 'tote']:
+            errors.append(f'แถวที่ {i+1}: เลข 3 หลัก "{number}" ใช้ได้เฉพาะ 3ตัวบน/โต๊ด')
+            continue
+        
+        # Count expected records
+        if len(number) == 2:
+            stats['2_digit'] += 1
+            stats['total_records'] += 4  # Each 2-digit creates 4 records
+        else:
+            stats['3_digit'] += 1  
+            stats['total_records'] += 7  # Each 3-digit creates 7 records
+        
+        valid_numbers.append(item)
+    
+    return {
+        'valid': len(errors) == 0,
+        'errors': errors,
+        'valid_numbers': valid_numbers,
+        'stats': stats
+    }
+
+
+def preview_bulk_blocked_numbers(numbers_data):
+    """
+    Generate preview of all numbers that will be created
+    
+    Returns:
+        List of all records that will be inserted into database
+    """
+    all_records = []
+    
+    for item in numbers_data:
+        records = generate_blocked_numbers_for_field(
+            item['number'], 
+            item['field']
+        )
+        
+        for record in records:
+            record['note'] = item.get('note', '')
+            
+        all_records.extend(records)
+    
+    return all_records
 

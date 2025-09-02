@@ -1,0 +1,544 @@
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask_login import login_required, current_user
+from flask_wtf import FlaskForm
+from wtforms import StringField, SelectField, TextAreaField, SubmitField, BooleanField
+from wtforms.validators import DataRequired, Length
+from functools import wraps
+from app.models import User, Order, OrderItem, Rule, BlockedNumber, AuditLog, NumberTotal
+from app.utils.number_utils import (
+    generate_blocked_numbers_for_field, 
+    validate_bulk_numbers, 
+    preview_bulk_blocked_numbers
+)
+from app import db
+
+admin_bp = Blueprint('admin', __name__)
+
+# Forms
+class BlockedNumberForm(FlaskForm):
+    field = SelectField('ประเภท', 
+                       choices=[
+                           ('2_top', '2 ตัวบน'),
+                           ('2_bottom', '2 ตัวล่าง'),
+                           ('3_top', '3 ตัวบน'),
+                           ('tote', 'โต๊ด')
+                       ],
+                       validators=[DataRequired()])
+    number_norm = StringField('หมายเลข', validators=[DataRequired(), Length(min=2, max=3)])
+    reason = TextAreaField('เหตุผล', validators=[Length(max=255)])
+    is_active = BooleanField('เปิดใช้งาน', default=True)
+    submit = SubmitField('บันทึก')
+
+class BulkBlockedNumberForm(FlaskForm):
+    reason = TextAreaField('เหตุผลทั่วไป', validators=[Length(max=255)])
+    is_active = BooleanField('เปิดใช้งานทั้งหมด', default=True)
+    submit = SubmitField('บันทึกทั้งหมด')
+
+def admin_required(f):
+    """Decorator to require admin access"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin():
+            flash('คุณไม่มีสิทธิ์เข้าถึงหน้านี้', 'error')
+            return redirect(url_for('main.index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@admin_bp.route('/dashboard')
+@login_required
+@admin_required
+def dashboard():
+    """Admin dashboard"""
+    # Get statistics
+    total_users = User.query.filter_by(role='user').count()
+    total_orders = Order.query.count()
+    total_amount = db.session.query(db.func.sum(Order.total_amount)).scalar() or 0
+    pending_orders = Order.query.filter_by(status='pending').count()
+    
+    # Get recent orders
+    recent_orders = Order.query.order_by(Order.created_at.desc()).limit(10).all()
+    
+    # Get recent audit logs
+    recent_logs = AuditLog.query.order_by(AuditLog.created_at.desc()).limit(10).all()
+    
+    # Prepare stats dictionary
+    stats = {
+        'total_orders': total_orders,
+        'total_amount': total_amount,
+        'blocked_numbers': BlockedNumber.query.count(),
+        'active_users': total_users
+    }
+    
+    return render_template('admin/dashboard.html',
+                         stats=stats,
+                         recent_orders=recent_orders,
+                         recent_logs=recent_logs)
+
+@admin_bp.route('/users')
+@login_required
+@admin_required
+def users():
+    """Users management"""
+    page = request.args.get('page', 1, type=int)
+    users = User.query.order_by(User.created_at.desc())\
+                     .paginate(page=page, per_page=20, error_out=False)
+    
+    return render_template('admin/users.html', users=users)
+
+@admin_bp.route('/orders')
+@login_required
+@admin_required
+def orders():
+    """Orders management"""
+    page = request.args.get('page', 1, type=int)
+    status_filter = request.args.get('status', '')
+    
+    query = Order.query
+    if status_filter:
+        query = query.filter_by(status=status_filter)
+    
+    orders = query.order_by(Order.created_at.desc())\
+                 .paginate(page=page, per_page=20, error_out=False)
+    
+    return render_template('admin/orders.html', orders=orders, status_filter=status_filter)
+
+@admin_bp.route('/rules')
+@login_required
+@admin_required
+def rules():
+    """Rules management"""
+    payout_rules = Rule.query.filter_by(rule_type='payout', is_active=True).all()
+    limit_rules = Rule.query.filter_by(rule_type='limit', is_active=True).all()
+    
+    return render_template('admin/rules.html', 
+                         payout_rules=payout_rules,
+                         limit_rules=limit_rules)
+
+@admin_bp.route('/blocked_numbers')
+@login_required
+@admin_required
+def blocked_numbers():
+    """Blocked numbers management"""
+    page = request.args.get('page', 1, type=int)
+    blocked_numbers = BlockedNumber.query.filter_by(is_active=True)\
+                                        .order_by(BlockedNumber.created_at.desc())\
+                                        .paginate(page=page, per_page=20, error_out=False)
+    
+    return render_template('admin/blocked_numbers.html', blocked_numbers=blocked_numbers)
+
+@admin_bp.route('/blocked_numbers/add', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def add_blocked_number():
+    """Add new blocked number"""
+    form = BlockedNumberForm()
+    
+    if form.validate_on_submit():
+        # Check if number already exists
+        existing = BlockedNumber.query.filter_by(
+            field=form.field.data,
+            number_norm=form.number_norm.data.zfill(3),
+            is_active=True
+        ).first()
+        
+        if existing:
+            flash(f'หมายเลข {form.number_norm.data} ในประเภท {form.field.data} ถูกบล็อกอยู่แล้ว', 'error')
+            return render_template('admin/blocked_number_form.html', form=form, title='เพิ่มเลขอั้น')
+        
+        # Create new blocked number
+        blocked_number = BlockedNumber(
+            field=form.field.data,
+            number_norm=form.number_norm.data.zfill(3),  # Pad with zeros
+            reason=form.reason.data,
+            is_active=form.is_active.data
+        )
+        
+        try:
+            db.session.add(blocked_number)
+            db.session.commit()
+            
+            # Log the action
+            audit_log = AuditLog(
+                user_id=current_user.id,
+                action='add_blocked_number',
+                ip_address=request.remote_addr,
+                user_agent=request.user_agent.string,
+                details={
+                    'field': form.field.data,
+                    'number_norm': form.number_norm.data.zfill(3),
+                    'reason': form.reason.data
+                }
+            )
+            db.session.add(audit_log)
+            db.session.commit()
+            
+            flash(f'เพิ่มเลขอั้น {form.number_norm.data} สำเร็จ', 'success')
+            return redirect(url_for('admin.blocked_numbers'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash('เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'error')
+    
+    return render_template('admin/blocked_number_form.html', form=form, title='เพิ่มเลขอั้น')
+
+@admin_bp.route('/blocked_numbers/bulk_add', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def bulk_add_blocked_numbers():
+    """Bulk add blocked numbers with automatic permutation generation"""
+    form = BulkBlockedNumberForm()
+    
+    if request.method == 'POST' and form.validate_on_submit():
+        # Get numbers data from JSON
+        numbers_data = request.get_json() if request.is_json else request.form.get('numbers_data')
+        
+        if isinstance(numbers_data, str):
+            import json
+            try:
+                numbers_data = json.loads(numbers_data)
+            except:
+                flash('ข้อมูลไม่ถูกต้อง', 'error')
+                return redirect(url_for('admin.bulk_add_blocked_numbers'))
+        
+        if not numbers_data or not isinstance(numbers_data, list):
+            flash('กรุณากรอกข้อมูลเลขอั้น', 'error')
+            return render_template('admin/bulk_blocked_number_form.html', form=form, title='เพิ่มเลขอั้นหลายตัว')
+        
+        # Validate and process input data
+        validation_result = validate_bulk_numbers_new_format(numbers_data)
+        
+        if not validation_result['valid']:
+            for error in validation_result['errors'][:5]:  # Show first 5 errors
+                flash(error, 'error')
+            return render_template('admin/bulk_blocked_number_form.html', form=form, title='เพิ่มเลขอั้นหลายตัว')
+        
+        success_count = 0
+        error_count = 0
+        errors = []
+        
+        try:
+            # Process each input number and generate all permutations
+            all_records = []
+            
+            for item in validation_result['valid_numbers']:
+                number = item['number']
+                number_type = item['type']
+                
+                # Generate permutations based on number type
+                if number_type == '2_digit':
+                    # For 2-digit, generate permutations for both 2_top and 2_bottom
+                    records_2top = generate_blocked_numbers_for_field(number, '2_top')
+                    records_2bottom = generate_blocked_numbers_for_field(number, '2_bottom')
+                    all_records.extend(records_2top)
+                    all_records.extend(records_2bottom)
+                elif number_type == '3_digit':
+                    # For 3-digit, generate permutations for 3_top and tote
+                    records = generate_blocked_numbers_for_field(number, '3_top')
+                    all_records.extend(records)
+            
+            # Remove duplicates and apply global settings
+            unique_records = []
+            seen = set()
+            
+            for record in all_records:
+                key = (record['field'], record['number_norm'])
+                if key not in seen:
+                    seen.add(key)
+                    # Apply global form settings
+                    if form.reason.data:
+                        record['reason'] = form.reason.data
+                    record['is_active'] = form.is_active.data
+                    unique_records.append(record)
+            
+            # Batch insert to database
+            if unique_records:
+                for record in unique_records:
+                    try:
+                        blocked_number = BlockedNumber(
+                            field=record['field'],
+                            number_norm=record['number_norm'],
+                            reason=record.get('reason', ''),
+                            is_active=record['is_active']
+                        )
+                        db.session.add(blocked_number)
+                        success_count += 1
+                    except Exception as e:
+                        error_count += 1
+                        errors.append(f"เลข {record['number_norm']}: {str(e)}")
+                
+                db.session.commit()
+                
+                # Log the bulk action
+                app.logger.info(
+                    f"Bulk blocked numbers added by user {current_user.username}: "
+                    f"{success_count} records, {error_count} errors"
+                )
+        
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Bulk add blocked numbers error: {str(e)}")
+            flash(f'เกิดข้อผิดพลาดในการบันทึก: {str(e)}', 'error')
+            return render_template('admin/bulk_blocked_number_form.html', form=form, title='เพิ่มเลขอั้นหลายตัว')
+        
+        # Show results
+        if success_count > 0:
+            flash(f'บันทึกเรียบร้อย! เพิ่มเลขอั้น {success_count} records', 'success')
+        
+        if error_count > 0:
+            flash(f'พบข้อผิดพลาด {error_count} รายการ', 'warning')
+            for error in errors[:3]:  # Show first 3 errors
+                flash(error, 'error')
+        
+        if success_count > 0:
+            return redirect(url_for('admin.blocked_numbers'))
+        
+    return render_template('admin/bulk_blocked_number_form.html', form=form, title='เพิ่มเลขอั้นหลายตัว')
+
+
+@admin_bp.route('/blocked_numbers/<int:id>/edit', methods=['GET', 'POST'])
+                user_agent=request.user_agent.string,
+                details={
+                    'success_count': success_count,
+                    'error_count': error_count,
+                    'input_count': len(validation_result['valid_numbers']),
+                    'total_records_created': success_count,
+                    'stats': validation_result['stats'],
+                    'reason': form.reason.data
+                }
+            )
+            db.session.add(audit_log)
+            db.session.commit()
+            
+            # Show results
+            if success_count > 0:
+                flash(f'เพิ่มเลขอั้นสำเร็จ {success_count} รายการ จากข้อมูลนำเข้า {len(validation_result["valid_numbers"])} ตัว', 'success')
+                flash(f'สถิติ: 2หลัก={validation_result["stats"]["2_digit"]}ตัว, 3หลัก={validation_result["stats"]["3_digit"]}ตัว', 'info')
+            
+            if error_count > 0:
+                flash(f'มีข้อผิดพลาด {error_count} รายการ', 'warning')
+                for error in errors[:3]:  # Show first 3 errors
+                    flash(error, 'error')
+            
+            if success_count > 0:
+                return redirect(url_for('admin.blocked_numbers'))
+                
+        except Exception as e:
+            db.session.rollback()
+            flash(f'เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}', 'error')
+    
+    return render_template('admin/bulk_blocked_number_form.html', form=form, title='เพิ่มเลขอั้นหลายตัว')
+
+# API endpoint for preview
+@admin_bp.route('/blocked_numbers/preview', methods=['POST'])
+@login_required
+@admin_required
+def preview_blocked_numbers():
+    """Preview all numbers that will be created from bulk input"""
+    try:
+        data = request.get_json()
+        numbers_data = data.get('numbers', [])
+        
+        if not numbers_data:
+            return jsonify({'error': 'ไม่มีข้อมูล'}), 400
+        
+        # Validate first
+        validation_result = validate_bulk_numbers(numbers_data)
+        
+        if not validation_result['valid']:
+            return jsonify({
+                'error': 'ข้อมูลไม่ถูกต้อง',
+                'errors': validation_result['errors']
+            }), 400
+        
+        # Generate preview
+        all_records = preview_bulk_blocked_numbers(validation_result['valid_numbers'])
+        
+        return jsonify({
+            'success': True,
+            'stats': validation_result['stats'],
+            'records': all_records,
+            'total_input': len(validation_result['valid_numbers']),
+            'total_output': len(all_records)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/blocked_numbers/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def edit_blocked_number(id):
+    """Edit blocked number"""
+    blocked_number = BlockedNumber.query.get_or_404(id)
+    form = BlockedNumberForm(obj=blocked_number)
+    
+    if form.validate_on_submit():
+        # Check if number already exists (excluding current record)
+        existing = BlockedNumber.query.filter(
+            BlockedNumber.field == form.field.data,
+            BlockedNumber.number_norm == form.number_norm.data.zfill(3),
+            BlockedNumber.is_active == True,
+            BlockedNumber.id != id
+        ).first()
+        
+        if existing:
+            flash(f'หมายเลข {form.number_norm.data} ในประเภท {form.field.data} ถูกบล็อกอยู่แล้ว', 'error')
+            return render_template('admin/blocked_number_form.html', form=form, title='แก้ไขเลขอั้น', edit=True)
+        
+        # Update blocked number
+        blocked_number.field = form.field.data
+        blocked_number.number_norm = form.number_norm.data.zfill(3)
+        blocked_number.reason = form.reason.data
+        blocked_number.is_active = form.is_active.data
+        
+        try:
+            db.session.commit()
+            
+            # Log the action
+            audit_log = AuditLog(
+                user_id=current_user.id,
+                action='edit_blocked_number',
+                ip_address=request.remote_addr,
+                user_agent=request.user_agent.string,
+                details={
+                    'id': id,
+                    'field': form.field.data,
+                    'number_norm': form.number_norm.data.zfill(3),
+                    'reason': form.reason.data
+                }
+            )
+            db.session.add(audit_log)
+            db.session.commit()
+            
+            flash(f'แก้ไขเลขอั้น {form.number_norm.data} สำเร็จ', 'success')
+            return redirect(url_for('admin.blocked_numbers'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash('เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'error')
+    
+    return render_template('admin/blocked_number_form.html', form=form, title='แก้ไขเลขอั้น', edit=True)
+
+@admin_bp.route('/blocked_numbers/<int:id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_blocked_number(id):
+    """Delete (deactivate) blocked number"""
+    blocked_number = BlockedNumber.query.get_or_404(id)
+    
+    try:
+        # Soft delete by setting is_active to False
+        blocked_number.is_active = False
+        db.session.commit()
+        
+        # Log the action
+        audit_log = AuditLog(
+            user_id=current_user.id,
+            action='delete_blocked_number',
+            ip_address=request.remote_addr,
+            user_agent=request.user_agent.string,
+            details={
+                'id': id,
+                'field': blocked_number.field,
+                'number_norm': blocked_number.number_norm
+            }
+        )
+        db.session.add(audit_log)
+        db.session.commit()
+        
+        flash(f'ลบเลขอั้น {blocked_number.number_norm} สำเร็จ', 'success')
+        
+    except Exception as e:
+        db.session.rollback()
+        flash('เกิดข้อผิดพลาดในการลบข้อมูล', 'error')
+    
+    return redirect(url_for('admin.blocked_numbers'))
+
+@admin_bp.route('/reports')
+@login_required
+@admin_required
+def reports():
+    """Reports and analytics"""
+    return render_template('admin/reports.html')
+
+@admin_bp.route('/audit_logs')
+@login_required
+@admin_required
+def audit_logs():
+    """Audit logs"""
+    page = request.args.get('page', 1, type=int)
+    action_filter = request.args.get('action', '')
+    
+    query = AuditLog.query
+    if action_filter:
+        query = query.filter_by(action=action_filter)
+    
+    logs = query.order_by(AuditLog.created_at.desc())\
+              .paginate(page=page, per_page=50, error_out=False)
+    
+    return render_template('admin/audit_logs.html', logs=logs, action_filter=action_filter)
+
+@admin_bp.route('/settings')
+@login_required
+@admin_required
+def settings():
+    """System settings"""
+    return render_template('admin/settings.html')
+
+
+def validate_bulk_numbers_new_format(numbers_data):
+    """Validate bulk numbers data in new format (2_digit/3_digit type)"""
+    errors = []
+    valid_numbers = []
+    
+    if not isinstance(numbers_data, list):
+        return {'valid': False, 'errors': ['ข้อมูลไม่ถูกรูปแบบ'], 'valid_numbers': []}
+    
+    for i, item in enumerate(numbers_data):
+        if not isinstance(item, dict):
+            errors.append(f'รายการที่ {i+1}: ข้อมูลไม่ถูกรูปแบบ')
+            continue
+            
+        number = item.get('number', '').strip()
+        number_type = item.get('type', '').strip()
+        
+        # Validate number
+        if not number:
+            errors.append(f'รายการที่ {i+1}: กรุณากรอกหมายเลข')
+            continue
+            
+        if not number.isdigit():
+            errors.append(f'รายการที่ {i+1}: หมายเลขต้องเป็นตัวเลขเท่านั้น')
+            continue
+        
+        # Validate number type and length
+        if number_type == '2_digit':
+            if len(number) > 2:
+                errors.append(f'รายการที่ {i+1}: เลข 2 หลักต้องไม่เกิน 2 ตัว')
+                continue
+        elif number_type == '3_digit':
+            if len(number) > 3:
+                errors.append(f'รายการที่ {i+1}: เลข 3 หลักต้องไม่เกิน 3 ตัว')
+                continue
+        else:
+            errors.append(f'รายการที่ {i+1}: ประเภทไม่ถูกต้อง')
+            continue
+        
+        # Auto-detect type if not specified correctly
+        if len(number) <= 2:
+            number_type = '2_digit'
+        else:
+            number_type = '3_digit'
+        
+        valid_numbers.append({
+            'number': number,
+            'type': number_type,
+            'original_index': i
+        })
+    
+    return {
+        'valid': len(errors) == 0,
+        'errors': errors,
+        'valid_numbers': valid_numbers
+    }
+
