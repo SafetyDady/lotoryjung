@@ -5,9 +5,25 @@ from app.services.limit_service import LimitService
 from app import db
 from decimal import Decimal, InvalidOperation
 import json
-from datetime import datetime
+import uuid
+from datetime import datetime, date
 
 api_bp = Blueprint('api', __name__)
+
+def get_base_payout_rate(field):
+    """Get base payout rate for a field from database"""
+    try:
+        payout_rates = LimitService.get_base_payout_rates()
+        return payout_rates.get(field, 0)
+    except Exception:
+        # Fallback default rates
+        default_rates = {
+            '2_top': 90,
+            '2_bottom': 90,
+            '3_top': 900,
+            'tote': 150
+        }
+        return default_rates.get(field, 0)
 
 @api_bp.route('/health')
 def health():
@@ -402,6 +418,9 @@ def submit_bulk_order():
         customer_name = data.get('customer_name', '').strip()
         batch_id = LimitService._get_current_batch_id()
         
+        # Get base payout rates for calculation
+        payout_rates = LimitService.get_base_payout_rates()
+        
         # Re-validate before submission to ensure data integrity
         validation_response = validate_bulk_order_internal(orders, batch_id)
         if not validation_response['success']:
@@ -410,19 +429,25 @@ def submit_bulk_order():
         validation_results = validation_response['validation_results']
         
         # Create main order record
-        from app.models import Order, OrderItem
-        
         total_amount = sum(
             sum(detail['amount'] for detail in result['details'])
             for result in validation_results
             if result['status'] != 'error'
         )
         
+        # Generate unique order number
+        order_number = f"ORD{datetime.now().strftime('%Y%m%d')}{str(uuid.uuid4())[:8].upper()}"
+        
+        # Set lottery period (default to today)
+        lottery_period = date.today()
+        
         new_order = Order(
+            order_number=order_number,
             user_id=current_user.id,
             customer_name=customer_name,
             total_amount=Decimal(str(total_amount)),
             batch_id=batch_id,
+            lottery_period=lottery_period,
             status='confirmed'
         )
         
@@ -439,17 +464,26 @@ def submit_bulk_order():
             clean_number = ''.join(filter(str.isdigit, result['number']))
             
             for detail in result['details']:
+                # Calculate actual payout for this item
+                base_payout = Decimal(str(detail['amount'])) * payout_rates[detail['field']]
+                actual_payout = base_payout * Decimal(str(detail['payout_rate']))
+                
                 order_item = OrderItem(
                     order_id=new_order.id,
-                    number=result['number'],
+                    number=result['number'],  # new field
+                    number_input=result['number'],  # legacy field (NOT NULL)
                     number_norm=clean_number,
                     field=detail['field'],
-                    amount=Decimal(str(detail['amount'])),
+                    amount=Decimal(str(detail['amount'])),  # new field
+                    buy_amount=Decimal(str(detail['amount'])),  # legacy field (NOT NULL)
                     validation_factor=Decimal(str(detail['payout_rate'])),  # ⭐ สำคัญ!
                     validation_reason=detail['reason'],
                     current_usage_at_time=Decimal(str(detail['current_usage'])),
                     limit_at_time=Decimal(str(detail['limit'])),
-                    is_blocked=detail['is_blocked']
+                    is_blocked=detail['is_blocked'],
+                    # ⭐ แก้ปัญหา: ใส่ค่าเริ่มต้นสำหรับ legacy fields (NOT NULL constraint)
+                    payout_rate=Decimal(str(detail['payout_rate'])),  # ใช้ค่าเดียวกับ validation_factor
+                    potential_payout=actual_payout  # คำนวณจากข้อมูลจริง
                 )
                 
                 order_items.append(order_item)

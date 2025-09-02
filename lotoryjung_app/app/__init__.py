@@ -20,7 +20,7 @@ login_manager = LoginManager()
 csrf = CSRFProtect()
 limiter = Limiter(
     key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"]
+    default_limits=["1000 per day", "200 per hour", "50 per minute"]
 )
 cors = CORS()
 socketio = SocketIO()

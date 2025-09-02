@@ -115,9 +115,15 @@ class OrderItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False, index=True)
     field = db.Column(db.String(20), nullable=False)  # 2_top, 2_bottom, 3_top, tote
-    number = db.Column(db.String(10), nullable=False)  # original input (renamed from number_input)
+    
+    # New fields (preferred)
+    number = db.Column(db.String(10), nullable=True, default='')  # original input (new field)
     number_norm = db.Column(db.String(10), nullable=False, index=True)  # normalized number
-    amount = db.Column(db.Numeric(10, 2), nullable=False)  # amount purchased (renamed from buy_amount)
+    amount = db.Column(db.Numeric(10, 2), nullable=True, default=0)  # amount purchased (new field)
+    
+    # Legacy fields (kept for compatibility with existing database)
+    number_input = db.Column(db.String(10), nullable=True)  # legacy original input field
+    buy_amount = db.Column(db.Numeric(10, 2), nullable=True)  # legacy amount field
     
     # ⭐ Validation factors for external payout calculation
     validation_factor = db.Column(db.Numeric(3, 2), nullable=False, default=1.0)  # 1.0 or 0.5

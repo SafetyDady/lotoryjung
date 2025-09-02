@@ -1,4 +1,21 @@
-# 🎰 Lotoryjung - Advanced Lottery Management System
+# 🎰 Lotoryjung - Advanced Lotte### 🛒 Bulk Order Form System (COMPLETED) ⭐
+- **Multi-row Orders** - สั่งซื้อหลายรายการพร้อมกัน (สูงสุด 20 บรรทัด)
+- **2-Step Validation** - ตรวจสอบรายบรรทัด และ ตรวจสอบทั้งหมด
+- **Field Restrictions** - 
+  - เลข 2 ตัว: ซื้อ "บน" และ "ล่าง" ได้เท่านั้น
+  - เลข 3 ตัว: ซื้อ "3 ตัวบน" และ "โต๊ด" ได้เท่านั้น
+- **Real-time Field Validation** - ป้องกันการใส่ข้อมูลผิดประเภท
+- **Dynamic Payout Display** - แสดงอัตราการจ่ายหลังการตรวจสอบ
+- **External Calculation Architecture** - รองรับการคำนวณจากระบบภายนอก
+- **Complete Database Integration** - บันทึกข้อมูลครบถ้วนในฐานข้อมูล
+
+### 💾 Database-Driven Payout System (COMPLETED) ⭐
+- **Dynamic Payout Rates** - ดึงอัตราการจ่ายจากฐานข้อมูล
+- **External Calculation Support** - รองรับการคำนวณจากระบบภายนอก
+- **Validation Factors** - บันทึกปัจจัยการตรวจสอบ (1.0x หรือ 0.5x)
+- **Message Text Updates** - ข้อความเตือน "มียอดซื้อเกินโควต้า"
+- **Legacy Database Compatibility** - รองรับทั้ง schema เก่าและใหม่
+- **Complete Field Mapping** - แมปข้อมูลระหว่าง validation และ database fieldsSystem
 
 เป็นระบบจัดการลอตเตอรี่ที่ครบครันด้วย Flask framework พร้อมระบบจัดการขีดจำกัดขั้นสูงและการจัดการเลขอั้น
 
@@ -81,7 +98,7 @@ Priority 3: Default Group Limits
 - **เลข 3 ตัว**: สามารถเลือก "ซื้อ 3 ตัวบน" หรือ "ซื้อโต๊ด" ได้เท่านั้น (ไม่สามารถซื้อล่างได้)
 - **จำนวนรายการ**: สูงสุด 20 บรรทัดต่อคำสั่งซื้อ
 
-### 💾 Database Schema
+### 💾 Database Schema (UPDATED) ⭐
 
 #### ตารางหลัก (Core Tables)
 ```sql
@@ -96,25 +113,31 @@ user
 -- Orders and order items with validation factors
 order               
 ├── id (PK)
-├── order_number (Unique)
+├── order_number (Unique, Auto-generated)
 ├── user_id (FK)
 ├── customer_name
 ├── total_amount
 ├── status
+├── lottery_period
 └── batch_id
 
-order_item          
+order_item (ENHANCED) ⭐          
 ├── id (PK)
 ├── order_id (FK)
-├── number
-├── number_norm
-├── field
-├── amount
-├── validation_factor (NEW) -- 1.0 หรือ 0.5
+├── field (2_top/2_bottom/3_top/tote)
+├── number (NEW) -- หมายเลขต้นฉบับ
+├── number_norm -- หมายเลขที่ normalize แล้ว
+├── amount (NEW) -- จำนวนเงินซื้อ
+├── validation_factor (NEW) -- ปัจจัยการตรวจสอบ (1.0 หรือ 0.5)
 ├── validation_reason (NEW) -- เหตุผลการปรับอัตรา
 ├── current_usage_at_time (NEW) -- ยอดใช้ ณ เวลาตรวจสอบ
 ├── limit_at_time (NEW) -- ขีดจำกัด ณ เวลาตรวจสอบ
-└── is_blocked
+├── is_blocked (NEW) -- สถานะเลขอั้น ณ เวลาตรวจสอบ
+├── number_input (LEGACY) -- เก็บ compatibility กับ schema เก่า
+├── buy_amount (LEGACY) -- เก็บ compatibility กับ schema เก่า
+├── payout_rate (LEGACY) -- อัตราการจ่าย (รองรับ schema เก่า)
+├── potential_payout (LEGACY) -- ผลตอบแทนโดยประมาณ
+└── created_at
 
 -- Rules for limits and payout rates (database-driven)
 rule                
@@ -132,12 +155,14 @@ blocked_number
 ├── field
 └── is_active
 
--- Usage tracking
+-- Usage tracking (ENHANCED)
 number_total        
 ├── id (PK)
+├── batch_id (NEW) -- ระบุ batch สำหรับติดตาม
 ├── number_norm
 ├── field
 ├── total_amount
+├── order_count (NEW) -- จำนวนคำสั่งซื้อ
 └── last_updated
 
 -- Audit logging
@@ -148,6 +173,12 @@ audit_log
 ├── details
 └── timestamp
 ```
+
+### 🔗 External Calculation Support
+ระบบออกแบบมาเพื่อรองรับการคำนวณจากระบบภายนอก:
+- **Validation Factors**: บันทึกปัจจัยการตรวจสอบ (1.0x ปกติ, 0.5x ลดครึ่ง)
+- **Historical Context**: เก็บข้อมูล usage และ limit ณ เวลาที่ตรวจสอบ
+- **Legacy Compatibility**: รองรับ schema เก่าเพื่อความต่อเนื่อง
 
 ## 🚀 Quick Start
 
@@ -258,7 +289,7 @@ python app.py
 
 ## 🔧 API Endpoints
 
-### Bulk Order Validation APIs (NEW) ⭐
+### Bulk Order Validation APIs (COMPLETED) ⭐
 ```http
 # Validate Bulk Order 
 POST /api/validate_bulk_order
@@ -289,7 +320,7 @@ X-CSRFToken: <token>
     }
 }
 
-# Submit Bulk Order
+# Submit Bulk Order (COMPLETED) ⭐
 POST /api/submit_bulk_order
 Content-Type: application/json
 X-CSRFToken: <token>
@@ -299,8 +330,39 @@ X-CSRFToken: <token>
     "customer_name": "ลูกค้า A"
 }
 
-# Get Payout Rates
+# Response - External Calculation Support
+{
+    "success": true,
+    "order_number": "ORD20250902AA83184C",
+    "external_calculation_data": [
+        {
+            "order_item_id": 1,
+            "number": "123",
+            "field": "3_top",
+            "amount": 10.0,
+            "validation_factor": 0.5,
+            "validation_reason": "เลขอั้น - Factor 0.5x",
+            "for_external_calculation": {
+                "base_payout_rate": 900,
+                "suggested_payout": 4500.0
+            }
+        }
+    ]
+}
+
+# Get Payout Rates (Database-Driven) ⭐
 GET /api/get_payout_rates
+
+# Response
+{
+    "success": true,
+    "rates": {
+        "2_top": 90,
+        "2_bottom": 90,
+        "3_top": 900,
+        "tote": 150
+    }
+}
 ```
 
 ### Individual Limits APIs
@@ -575,9 +637,9 @@ flask db upgrade
 
 ## 📊 System Status
 
-**Current Version**: 2.0 (Individual Limits + Bulk Order Form)  
+**Current Version**: 2.1 (Complete Bulk Order System + External Calculation)  
 **Last Updated**: September 2, 2025  
-**Status**: Production Ready ✅ All Features Operational
+**Status**: Production Ready ✅ All Features Operational & Tested
 
 ### Feature Completeness
 - ✅ Order Management System
@@ -585,27 +647,40 @@ flask db upgrade
 - ✅ Blocked Numbers Management
 - ✅ Group Limits Management  
 - ✅ Individual Number Limits ⭐
-- ✅ Bulk Order Form System ⭐
-- ✅ Database-driven Payout System ⭐
+- ✅ Bulk Order Form System (COMPLETED) ⭐
+- ✅ Database-driven Payout System (COMPLETED) ⭐
 - ✅ 2-Step Validation Process ⭐
 - ✅ Field Restrictions Logic ⭐
-- ✅ External Calculation Support ⭐
+- ✅ External Calculation Support (COMPLETED) ⭐
 - ✅ Message Text Updates ("มียอดซื้อเกินโควต้า") ⭐
+- ✅ Legacy Database Compatibility (COMPLETED) ⭐
+- ✅ Complete Order Submission & Tracking (COMPLETED) ⭐
+
+### Recent Updates (Version 2.1)
+- ✅ **Bulk Order Form**: สมบูรณ์ - รองรับ 20 บรรทัด, 2-step validation
+- ✅ **Database Integration**: บันทึกครบถ้วน - Orders, OrderItems, NumberTotals
+- ✅ **External Calculation**: รองรับการคำนวณภายนอกผ่าน validation_factor
+- ✅ **Legacy Compatibility**: รองรับ schema เก่าและใหม่พร้อมกัน
+- ✅ **Field Mapping**: แก้ไขปัญหา compatibility ระหว่าง database fields
+- ✅ **Order Tracking**: สร้าง Order Number อัตโนมัติและติดตามครบถ้วน
 
 ### Technical Specifications
 - **Framework**: Flask 2.3+
 - **Database**: SQLite (dev) / PostgreSQL (prod)
 - **Frontend**: Bootstrap 5.3, jQuery, JavaScript ES6
-- **Security**: CSRF Protection, Role-based Access
-- **Architecture**: MVC with Service Layer Pattern
+- **Security**: CSRF Protection, Role-based Access, Rate Limiting
+- **Architecture**: MVC with Service Layer Pattern + External Calculation Support
 
 ---
 
-**🏆 สำเร็จแล้ว: Individual Limits + Bulk Order Form System พร้อมใช้งาน!**  
-**👨‍💻 พัฒนาโดย SafetyDady | 📅 September 2, 2025 | 🌟 Version 2.0**
+**🚀 เวอร์ชั่นใหม่: Complete Bulk Order System พร้อมใช้งานเต็มรูปแบบ!**  
+**👨‍💻 พัฒนาโดย SafetyDady | 📅 September 2, 2025 | 🌟 Version 2.1**
 - ✅ Order Management  
 - ✅ Blocked Numbers Management
 - ✅ Group Limits Management
+- ✅ Individual Number Limits (COMPLETED)
+- ✅ Bulk Order Form System (COMPLETED)
+- ✅ External Calculation Architecture (COMPLETED)
 - ✅ Individual Limits Management
 - ✅ Admin Dashboard
 - ✅ Security Implementation
