@@ -115,22 +115,42 @@ class OrderItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False, index=True)
     field = db.Column(db.String(20), nullable=False)  # 2_top, 2_bottom, 3_top, tote
-    number_input = db.Column(db.String(10), nullable=False)  # original input
+    number = db.Column(db.String(10), nullable=False)  # original input (renamed from number_input)
     number_norm = db.Column(db.String(10), nullable=False, index=True)  # normalized number
-    buy_amount = db.Column(db.Numeric(10, 2), nullable=False)
-    payout_rate = db.Column(db.Numeric(5, 2), nullable=False)  # payout multiplier
-    potential_payout = db.Column(db.Numeric(10, 2), nullable=False)  # calculated payout
-    is_blocked = db.Column(db.Boolean, nullable=False, default=False)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)  # amount purchased (renamed from buy_amount)
+    
+    # ⭐ Validation factors for external payout calculation
+    validation_factor = db.Column(db.Numeric(3, 2), nullable=False, default=1.0)  # 1.0 or 0.5
+    validation_reason = db.Column(db.String(100), nullable=False, default='ปกติ')  # reason for factor
+    current_usage_at_time = db.Column(db.Numeric(10, 2), nullable=False, default=0)  # usage when submitted
+    limit_at_time = db.Column(db.Numeric(10, 2), nullable=False, default=0)  # limit when submitted
+    is_blocked = db.Column(db.Boolean, nullable=False, default=False)  # was blocked when submitted
+    
+    # Legacy fields (kept for compatibility)
+    payout_rate = db.Column(db.Numeric(5, 2), nullable=True)  # legacy payout multiplier
+    potential_payout = db.Column(db.Numeric(10, 2), nullable=True)  # legacy calculated payout
+    
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(BANGKOK_TZ))
     
     __table_args__ = (
         db.UniqueConstraint('order_id', 'field', 'number_norm', name='unique_order_item'),
         db.Index('idx_item_field_number', 'field', 'number_norm'),
         db.Index('idx_item_order_field', 'order_id', 'field'),
+        db.Index('idx_item_validation', 'validation_factor', 'is_blocked'),  # for reporting
     )
     
+    def get_base_payout_rate(self):
+        """Get base payout rate for this field from database"""
+        from app.services.limit_service import LimitService
+        return LimitService.get_base_payout_rate(self.field)
+    
+    def get_suggested_payout(self):
+        """Get suggested payout using validation factor (for external calculation)"""
+        base_rate = self.get_base_payout_rate()
+        return float(self.amount) * base_rate * float(self.validation_factor)
+    
     def __repr__(self):
-        return f'<OrderItem {self.field}:{self.number_norm}@{self.buy_amount}>'
+        return f'<OrderItem {self.field}:{self.number_norm}@{self.amount} (factor:{self.validation_factor})>'
 
 class NumberTotal(db.Model):
     """Number totals for limit tracking"""

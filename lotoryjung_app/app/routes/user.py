@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from app.models import Order, OrderItem, User
 from app import db
+from datetime import datetime, timedelta
 
 user_bp = Blueprint('user', __name__)
 
@@ -72,6 +73,15 @@ def new_order():
         return redirect(url_for('admin.new_order'))
     
     return render_template('user/new_order.html')
+
+@user_bp.route('/bulk_order_form')
+@login_required
+def bulk_order():
+    """Bulk order form with 2-step validation"""
+    if current_user.is_admin():
+        return redirect(url_for('user.bulk_order'))  # Admin can also use this form
+    
+    return render_template('user/bulk_order_form.html')
 
 @user_bp.route('/profile')
 @login_required

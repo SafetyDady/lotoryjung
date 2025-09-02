@@ -30,7 +30,22 @@
 - **CRUD Operations** - เพิ่ม/แก้ไข/ลบ ขีดจำกัดเฉพาะเลข
 - **Override Default Limits** - แทนที่ขีดจำกัดเริ่มต้นได้
 
-### 🛡️ Security Features
+### �️ Bulk Order Form System (NEW) ⭐
+- **Multi-row Orders** - สั่งซื้อหลายรายการพร้อมกัน (สูงสุด 20 บรรทัด)
+- **2-Step Validation** - ตรวจสอบรายบรรทัด และ ตรวจสอบทั้งหมด
+- **Field Restrictions** - 
+  - เลข 2 ตัว: ซื้อ "บน" และ "ล่าง" ได้เท่านั้น
+  - เลข 3 ตัว: ซื้อ "3 ตัวบน" และ "โต๊ด" ได้เท่านั้น
+- **Real-time Field Validation** - ป้องกันการใส่ข้อมูลผิดประเภท
+- **Dynamic Payout Display** - แสดงอัตราการจ่ายหลังการตรวจสอบ
+
+### 💾 Database-Driven Payout System (NEW) ⭐
+- **Dynamic Payout Rates** - ดึงอัตราการจ่ายจากฐานข้อมูล
+- **External Calculation Support** - รองรับการคำนวณจากระบบภายนอก
+- **Validation Factors** - บันทึกปัจจัยการตรวจสอบ (1.0x หรือ 0.5x)
+- **Message Text Updates** - ข้อความเตือน "มียอดซื้อเกินโควต้า"
+
+### �🛡️ Security Features
 - **CSRF Protection** - ป้องกันการโจมตี Cross-Site Request Forgery
 - **Admin Authorization** - ระบบสิทธิ์ผู้ดูแลระบบ
 - **Input Validation** - ตรวจสอบข้อมูลนำเข้าทุกขั้นตอน
@@ -41,15 +56,18 @@
 ### 📋 Validation Priority Logic
 ```
 Priority 1: Blocked Numbers Check
-    ├── If blocked → 0.5x payout rate
+    ├── If blocked → 0.5x payout rate, message: "เลขอั้น"
     └── If not blocked → Continue
 
 Priority 2: Individual Limits Check  
     ├── If individual limit exists → Use individual limit
+    │   ├── If over limit → 0.5x payout rate, message: "มียอดซื้อเกินโควต้า"
+    │   └── If within limit → 1.0x payout rate
     └── If no individual limit → Continue
 
 Priority 3: Default Group Limits
-    └── Apply default group limit for field type
+    ├── If over group limit → 0.5x payout rate, message: "มียอดซื้อเกินโควต้า"
+    └── If within group limit → 1.0x payout rate
 ```
 
 ### 🎲 Field Types Supported
@@ -58,16 +76,77 @@ Priority 3: Default Group Limits
 - **3_top** (3 ตัวบน) - 3-digit top lottery
 - **tote** (โต๊ด) - Tote betting
 
+### 🎯 Bulk Order Form Field Restrictions
+- **เลข 2 ตัว**: สามารถเลือก "ซื้อบน" หรือ "ซื้อล่าง" ได้เท่านั้น (ไม่สามารถซื้อโต๊ดได้)
+- **เลข 3 ตัว**: สามารถเลือก "ซื้อ 3 ตัวบน" หรือ "ซื้อโต๊ด" ได้เท่านั้น (ไม่สามารถซื้อล่างได้)
+- **จำนวนรายการ**: สูงสุด 20 บรรทัดต่อคำสั่งซื้อ
+
 ### 💾 Database Schema
+
+#### ตารางหลัก (Core Tables)
 ```sql
--- Core tables
-user                 -- User authentication
-order               -- Lottery orders
-order_item          -- Individual lottery bets
-blocked_number      -- Blocked lottery numbers
-rule                -- Both group and individual limits
-number_total        -- Usage tracking
-audit_log          -- Change tracking
+-- User authentication
+user                 
+├── id (PK)
+├── username (Unique)
+├── password_hash
+├── role (user/admin)
+└── is_active
+
+-- Orders and order items with validation factors
+order               
+├── id (PK)
+├── order_number (Unique)
+├── user_id (FK)
+├── customer_name
+├── total_amount
+├── status
+└── batch_id
+
+order_item          
+├── id (PK)
+├── order_id (FK)
+├── number
+├── number_norm
+├── field
+├── amount
+├── validation_factor (NEW) -- 1.0 หรือ 0.5
+├── validation_reason (NEW) -- เหตุผลการปรับอัตรา
+├── current_usage_at_time (NEW) -- ยอดใช้ ณ เวลาตรวจสอบ
+├── limit_at_time (NEW) -- ขีดจำกัด ณ เวลาตรวจสอบ
+└── is_blocked
+
+-- Rules for limits and payout rates (database-driven)
+rule                
+├── id (PK)
+├── rule_type (limit/blocked/payout)
+├── field (2_top/2_bottom/3_top/tote)
+├── number_norm (NULL for defaults)
+├── value
+└── is_active
+
+-- Blocked numbers
+blocked_number      
+├── id (PK)
+├── number_norm
+├── field
+└── is_active
+
+-- Usage tracking
+number_total        
+├── id (PK)
+├── number_norm
+├── field
+├── total_amount
+└── last_updated
+
+-- Audit logging
+audit_log          
+├── id (PK)
+├── user_id (FK)
+├── action
+├── details
+└── timestamp
 ```
 
 ## 🚀 Quick Start
@@ -87,19 +166,68 @@ cd lotoryjung_app
 pip install -r requirements.txt
 
 # Initialize database
-python init_db.py
+flask db init
+flask db migrate -m "Initial migration"
+flask db upgrade
 
-# Initialize default limits
-python init_limits.py
+# Create default users and setup data
+python -c "
+from app import create_app, db
+from app.models import User, Rule
+app = create_app()
+with app.app_context():
+    # Create users
+    admin = User(username='admin', name='Administrator', role='admin')
+    admin.set_password('admin123')
+    user = User(username='testuser', name='Test User', role='user')
+    user.set_password('test123')
+    db.session.add_all([admin, user])
+    
+    # Create default payout rates
+    payout_rates = [
+        Rule(rule_type='payout', field='2_top', value=90),
+        Rule(rule_type='payout', field='2_bottom', value=90),
+        Rule(rule_type='payout', field='3_top', value=900),
+        Rule(rule_type='payout', field='tote', value=150)
+    ]
+    db.session.add_all(payout_rates)
+    
+    # Create default group limits
+    default_limits = [
+        Rule(rule_type='limit', field='2_top', value=1000),
+        Rule(rule_type='limit', field='2_bottom', value=1000),
+        Rule(rule_type='limit', field='3_top', value=500),
+        Rule(rule_type='limit', field='tote', value=500)
+    ]
+    db.session.add_all(default_limits)
+    
+    db.session.commit()
+    print('Database initialized successfully')
+"
 
 # Start server
-python run_server.py
+python app.py
 ```
 
 ### Default Access
-- **URL**: http://127.0.0.1:8080
+- **URL**: http://127.0.0.1:5002
 - **Admin Login**: admin / admin123
 - **Test User**: testuser / test123
+
+## 📱 User Interface Features
+
+### 🛍️ Bulk Order Form
+- **URL**: `/bulk_order_form` (user login required)
+- สั่งซื้อหลายรายการพร้อมกัน (สูงสุด 20 บรรทัด)
+- ตรวจสอบความถูกต้องแบบ 2-ขั้นตอน
+- แสดงอัตราการจ่ายและขีดจำกัดแบบเรียลไทม์
+- Field restrictions enforcement
+
+### 🎯 Single Order Form  
+- **URL**: `/order` (user login required)
+- สั่งซื้อรายการเดียว
+- ตรวจสอบขีดจำกัดทันที
+- การคำนวณการจ่ายแบบทันที
 
 ## 📱 Admin Panel Features
 
@@ -129,6 +257,51 @@ python run_server.py
 - Modal-based CRUD operations
 
 ## 🔧 API Endpoints
+
+### Bulk Order Validation APIs (NEW) ⭐
+```http
+# Validate Bulk Order 
+POST /api/validate_bulk_order
+Content-Type: application/json
+X-CSRFToken: <token>
+
+{
+    "orders": [
+        {
+            "rowId": "row_123456789",
+            "number": "44",
+            "amount_2_top": 100,
+            "amount_2_bottom": 50,
+            "amount_tote": 0
+        }
+    ]
+}
+
+# Response
+{
+    "success": true,
+    "validation_results": [...],
+    "summary": {
+        "total_amount": 150,
+        "estimated_payout": 13500,
+        "normal_payout_items": 2,
+        "reduced_payout_items": 0
+    }
+}
+
+# Submit Bulk Order
+POST /api/submit_bulk_order
+Content-Type: application/json
+X-CSRFToken: <token>
+
+{
+    "orders": [...],
+    "customer_name": "ลูกค้า A"
+}
+
+# Get Payout Rates
+GET /api/get_payout_rates
+```
 
 ### Individual Limits APIs
 ```http
@@ -179,6 +352,29 @@ GET /admin/group_limits/api/dashboard_data?batch_id=20250902
 
 ## 🔍 Usage Examples
 
+### Bulk Order Form Validation
+```javascript
+// JavaScript field validation example
+function validateNumberAndToggleFields(inputElement) {
+    const number = inputElement.value.trim();
+    const row = inputElement.closest('tr');
+    
+    if (number.length === 2) {
+        // Enable 2-digit fields, disable 3-digit/tote
+        row.querySelector('[name="amount_2_top"]').disabled = false;
+        row.querySelector('[name="amount_2_bottom"]').disabled = false;
+        row.querySelector('[name="amount_3_top"]').disabled = true;
+        row.querySelector('[name="amount_tote"]').disabled = true;
+    } else if (number.length === 3) {
+        // Enable 3-digit/tote fields, disable 2-digit bottom
+        row.querySelector('[name="amount_2_top"]').disabled = true;
+        row.querySelector('[name="amount_2_bottom"]').disabled = true;
+        row.querySelector('[name="amount_3_top"]').disabled = false;
+        row.querySelector('[name="amount_tote"]').disabled = false;
+    }
+}
+```
+
 ### Adding Individual Limit
 ```python
 from app.services.limit_service import LimitService
@@ -187,12 +383,13 @@ from app.services.limit_service import LimitService
 success = LimitService.set_individual_limit("2_top", "12", 500)
 ```
 
-### Validating Order
+### Validating Order with External Calculation Support
 ```python
-# Validate order with priority logic
+# Validate order with validation factors for external calculation
 result = LimitService.validate_order_item("2_top", "12", 300)
-print(f"Payout rate: {result['payout_rate']}x")
-print(f"Status: {result['reason']}")
+print(f"Validation factor: {result['validation_factor']}x")
+print(f"Reason: {result['validation_reason']}")
+print(f"Base payout rate: {result['base_payout_rate']}")
 ```
 
 ### Getting Current Usage
@@ -251,10 +448,54 @@ print(f"Current usage: {usage} บาท")
 - [ ] API rate limiting
 - [ ] Real-time notifications
 
+- SQL query profiling
+- Error logging and monitoring
+- Development environment setup
+
+### Testing Framework
+- Unit tests for service layer
+- Integration tests for API endpoints
+- Frontend validation testing
+- Database migration testing
+
+## 🚦 Deployment
+
+### Production Considerations
+- **Environment Variables**: Configure production settings
+- **Database**: Use PostgreSQL for production
+- **Web Server**: Deploy with Gunicorn + Nginx
+- **SSL Certificate**: Enable HTTPS for security
+- **Backup Strategy**: Regular database backups
+
+### Environment Setup
+```bash
+# Production environment variables
+export FLASK_ENV=production
+export SECRET_KEY=your-secret-key
+export DATABASE_URL=postgresql://user:pass@localhost/lotoryjung
+export ADMIN_EMAIL=admin@example.com
+```
+
+## 🔮 Future Roadmap
+
+### Phase 1 Enhancements (Completed ✅)
+- ✅ Individual Number Limits Management System
+- ✅ Bulk Order Form with 2-step Validation
+- ✅ Database-driven Payout System
+- ✅ Field Validation Logic
+- ✅ External Calculation Support
+
+### Phase 2 Enhancements (Planning)
+- [ ] Real-time Notifications System
+- [ ] Advanced Reporting & Analytics
+- [ ] Mobile-responsive Design Improvements
+- [ ] Multi-language Support
+- [ ] API Rate Limiting
+
 ### System Improvements
 - [ ] Database connection pooling
-- [ ] Caching layer implementation
-- [ ] Background job processing
+- [ ] Caching layer implementation (Redis)
+- [ ] Background job processing (Celery)
 - [ ] Microservices architecture
 - [ ] Container deployment (Docker)
 
@@ -267,11 +508,26 @@ print(f"Current usage: {usage} บาท")
 4. Use meaningful commit messages
 
 ### Code Structure
-- **Models**: Database layer (`app/models/`)
-- **Services**: Business logic (`app/services/`)
-- **Routes**: Controller layer (`app/routes/`)
-- **Templates**: View layer (`templates/`)
-- **Static**: Frontend assets (`static/`)
+```
+app/
+├── models.py           # Database layer
+├── services/
+│   └── limit_service.py # Business logic
+├── routes/
+│   ├── auth.py         # Authentication
+│   ├── user.py         # User routes
+│   ├── admin.py        # Admin panel
+│   └── api.py          # API endpoints
+├── templates/          # Jinja2 templates
+└── static/            # Frontend assets
+```
+
+### Contribution Process
+1. Fork the repository
+2. Create feature branch
+3. Implement changes with tests
+4. Update documentation
+5. Submit pull request
 
 ## 📄 License
 
@@ -280,27 +536,73 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 🆘 Support & Troubleshooting
 
 ### Common Issues
-- **CSRF Token Errors**: Ensure AJAX requests include CSRF token
-- **Template Rendering**: Check Jinja2 syntax and function usage
-- **Database Errors**: Verify database initialization and migrations
-- **Permission Issues**: Confirm admin user authentication
+
+#### CSRF Token Errors
+```javascript
+// Ensure AJAX requests include CSRF token
+$.ajaxSetup({
+    beforeSend: function(xhr, settings) {
+        if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain) {
+            xhr.setRequestHeader("X-CSRFToken", $('meta[name=csrf-token]').attr('content'));
+        }
+    }
+});
+```
+
+#### Database Connection Issues
+```bash
+# Check database initialization
+flask db current
+flask db upgrade
+
+# Reset database if needed
+rm instance/app.db
+flask db upgrade
+```
+
+#### Field Validation Problems
+- Verify JavaScript validation functions
+- Check field name attributes in HTML
+- Ensure proper event listeners attachment
 
 ### Getting Help
-- Check documentation in `/docs` folder
-- Review server logs for detailed error messages
-- Test API endpoints individually
-- Verify database schema integrity
+- Check documentation thoroughly
+- Review server logs: `tail -f logs/app.log`
+- Test API endpoints with curl/Postman
+- Verify database schema with DB browser
 
 ---
 
 ## 📊 System Status
 
-**Current Version**: 2.0  
+**Current Version**: 2.0 (Individual Limits + Bulk Order Form)  
 **Last Updated**: September 2, 2025  
-**Status**: Production Ready with Individual Limits ✅
+**Status**: Production Ready ✅ All Features Operational
 
 ### Feature Completeness
-- ✅ User Authentication System
+- ✅ Order Management System
+- ✅ Admin Dashboard
+- ✅ Blocked Numbers Management
+- ✅ Group Limits Management  
+- ✅ Individual Number Limits ⭐
+- ✅ Bulk Order Form System ⭐
+- ✅ Database-driven Payout System ⭐
+- ✅ 2-Step Validation Process ⭐
+- ✅ Field Restrictions Logic ⭐
+- ✅ External Calculation Support ⭐
+- ✅ Message Text Updates ("มียอดซื้อเกินโควต้า") ⭐
+
+### Technical Specifications
+- **Framework**: Flask 2.3+
+- **Database**: SQLite (dev) / PostgreSQL (prod)
+- **Frontend**: Bootstrap 5.3, jQuery, JavaScript ES6
+- **Security**: CSRF Protection, Role-based Access
+- **Architecture**: MVC with Service Layer Pattern
+
+---
+
+**🏆 สำเร็จแล้ว: Individual Limits + Bulk Order Form System พร้อมใช้งาน!**  
+**👨‍💻 พัฒนาโดย SafetyDady | 📅 September 2, 2025 | 🌟 Version 2.0**
 - ✅ Order Management  
 - ✅ Blocked Numbers Management
 - ✅ Group Limits Management

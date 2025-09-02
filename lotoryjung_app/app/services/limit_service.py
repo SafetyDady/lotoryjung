@@ -12,7 +12,73 @@ class LimitService:
     """Service for managing individual number limits and payout calculations"""
     
     @staticmethod
-    def get_default_group_limits() -> Dict[str, Decimal]:
+    def get_base_payout_rates() -> Dict[str, int]:
+        """Get base payout rates from database rules"""
+        rates = {}
+        
+        # Query payout rules (rule_type='payout', number_norm=NULL)
+        payout_rules = Rule.query.filter(
+            Rule.rule_type == 'payout',
+            Rule.number_norm.is_(None),
+            Rule.is_active == True
+        ).all()
+        
+        for rule in payout_rules:
+            rates[rule.field] = int(rule.value)
+        
+        # Set system fallback rates if not found in database
+        system_defaults = {
+            '2_top': 90,
+            '2_bottom': 90,
+            '3_top': 900,
+            'tote': 150
+        }
+        
+        for field, default_rate in system_defaults.items():
+            if field not in rates:
+                rates[field] = default_rate
+                
+        return rates
+    
+    @staticmethod
+    def get_base_payout_rate(field: str) -> int:
+        """Get base payout rate for specific field"""
+        rates = LimitService.get_base_payout_rates()
+        return rates.get(field, 0)
+    
+    @staticmethod
+    def set_base_payout_rate(field: str, rate: int) -> bool:
+        """Set base payout rate for field"""
+        try:
+            # Find existing rule or create new
+            rule = Rule.query.filter(
+                Rule.rule_type == 'payout',
+                Rule.field == field,
+                Rule.number_norm.is_(None)
+            ).first()
+            
+            if rule:
+                rule.value = Decimal(str(rate))
+            else:
+                rule = Rule(
+                    rule_type='payout',
+                    field=field,
+                    number_norm=None,
+                    value=Decimal(str(rate)),
+                    is_active=True
+                )
+                db.session.add(rule)
+            
+            db.session.commit()
+            return True
+            
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error setting base payout rate: {e}")
+            return False
+
+    @staticmethod
+    def get_default_limits() -> Dict[str, Decimal]:
         """Get default limits for each field group"""
         limits = {}
         
@@ -55,7 +121,7 @@ class LimitService:
             return individual_rule.value
         
         # Fallback to default group limit
-        default_limits = LimitService.get_default_group_limits()
+        default_limits = LimitService.get_default_limits()
         return default_limits.get(field, Decimal('0'))
     
     @staticmethod
@@ -205,7 +271,7 @@ class LimitService:
         elif (current_usage + buy_amount) > limit:
             result.update({
                 'payout_rate': 0.5,
-                'reason': f'เกินขีดจำกัด {limit:,.0f} บาท - จ่ายครึ่งเดียว'
+                'reason': 'มียอดซื้อรวมเกินโควต้า - จ่ายครึ่งเดียว'
             })
         
         return result

@@ -1,8 +1,11 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.models import Order, OrderItem, Rule, BlockedNumber, NumberTotal
+from app.services.limit_service import LimitService
 from app import db
+from decimal import Decimal, InvalidOperation
 import json
+from datetime import datetime
 
 api_bp = Blueprint('api', __name__)
 
@@ -63,40 +66,563 @@ def get_number_total(field, number):
         'order_count': total.order_count if total else 0
     })
 
-@api_bp.route('/validate_order', methods=['POST'])
+@api_bp.route('/validate_bulk_order', methods=['POST'])
 @login_required
-def validate_order():
-    """Validate order before submission"""
-    data = request.get_json()
-    
-    # Validate each item
-    errors = []
-    total_amount = 0
-    
-    for item in data.get('items', []):
-        field = item.get('field')
-        number = item.get('number')
-        amount = float(item.get('amount', 0))
+def validate_bulk_order():
+    """
+    Comprehensive validation for bulk order
+    Returns current totals, limits, and validation results for each item
+    """
+    try:
+        data = request.get_json()
+        print(f"DEBUG BULK: Raw request data: {request.data}")  # Debug raw data
+        print(f"DEBUG BULK: Parsed JSON data: {data}")  # Debug log
         
-        # Check if number is blocked
-        blocked = BlockedNumber.query.filter_by(
-            field=field,
-            number_norm=number,
-            is_active=True
+        if not data:
+            print("DEBUG BULK: No JSON data received")  # Debug log
+            return jsonify({
+                'success': False,
+                'error': 'No JSON data received'
+            }), 400
+            
+        if 'orders' not in data:
+            print(f"DEBUG BULK: Missing orders key. Keys: {list(data.keys()) if data else 'None'}")  # Debug log
+            return jsonify({
+                'success': False,
+                'error': 'Missing orders key'
+            }), 400
+        
+        orders = data['orders']
+        print(f"DEBUG BULK: Number of orders: {len(orders)}")  # Debug log
+        batch_id = LimitService._get_current_batch_id()
+        
+        validation_results = []
+        summary = {
+            'total_amount': Decimal('0'),
+            'total_items': 0,
+            'normal_payout_items': 0,
+            'reduced_payout_items': 0,
+            'blocked_items': 0,
+            'over_limit_items': 0,
+            'estimated_payout': Decimal('0')
+        }
+        
+        # Payout rates from database
+        payout_rates = LimitService.get_base_payout_rates()
+        
+        for order in orders:
+            number = order.get('number', '').strip()
+            amount_2_top = Decimal(str(order.get('amount_2_top', 0)))
+            amount_2_bottom = Decimal(str(order.get('amount_2_bottom', 0)))
+            amount_tote = Decimal(str(order.get('amount_tote', 0)))
+            
+            # Validate number format
+            clean_number = ''.join(filter(str.isdigit, number))
+            if not clean_number or len(clean_number) not in [2, 3]:
+                validation_results.append({
+                    'number': number,
+                    'status': 'error',
+                    'message': 'รูปแบบเลขไม่ถูกต้อง',
+                    'details': []
+                })
+                continue
+            
+            row_result = {
+                'number': number,
+                'status': 'success',
+                'message': 'ตรวจสอบเรียบร้อย',
+                'details': [],
+                'total_amount': Decimal('0'),
+                'estimated_payout': Decimal('0')
+            }
+            
+            # Check each field that has amount > 0
+            fields_to_check = []
+            
+            if len(clean_number) == 2:
+                # 2 digits: can buy 2_top and 2_bottom
+                if amount_2_top > 0:
+                    fields_to_check.append(('2_top', amount_2_top))
+                if amount_2_bottom > 0:
+                    fields_to_check.append(('2_bottom', amount_2_bottom))
+            elif len(clean_number) == 3:
+                # 3 digits: can buy 3_top (mapped from amount_2_top) and tote
+                if amount_2_top > 0:  # For 3 digits, "ซื้อบน" means 3_top
+                    fields_to_check.append(('3_top', amount_2_top))
+                if amount_tote > 0:
+                    fields_to_check.append(('tote', amount_tote))
+            
+            if not fields_to_check:
+                validation_results.append({
+                    'number': number,
+                    'status': 'warning',
+                    'message': 'ไม่มีจำนวนเงินที่จะซื้อ',
+                    'details': []
+                })
+                continue
+            
+            # Validate each field
+            for field, amount in fields_to_check:
+                # Get current usage and limits
+                current_usage = LimitService.get_current_usage(field, clean_number, batch_id)
+                limit = LimitService.get_individual_limit(field, clean_number)
+                is_blocked = LimitService.is_blocked_number(field, clean_number)
+                
+                # Calculate new total after this purchase
+                new_total = current_usage + amount
+                
+                # Determine payout rate
+                payout_rate = 1.0
+                reason = 'ปกติ'
+                status_class = 'success'
+                
+                if is_blocked:
+                    payout_rate = 0.5
+                    reason = 'เลขอั้น - จ่ายครึ่งเท่า'
+                    status_class = 'warning'
+                    summary['blocked_items'] += 1
+                elif new_total > limit:
+                    payout_rate = 0.5
+                    reason = 'มียอดซื้อเกินโควต้า - จ่ายครึ่งเท่า'
+                    status_class = 'warning'
+                    summary['over_limit_items'] += 1
+                else:
+                    summary['normal_payout_items'] += 1
+                
+                # Calculate payout
+                base_payout = amount * payout_rates[field]
+                actual_payout = base_payout * Decimal(str(payout_rate))
+                
+                # Add to row details
+                field_display = LimitService._get_field_display_name(field)
+                row_result['details'].append({
+                    'field': field,
+                    'field_display': field_display,
+                    'amount': float(amount),
+                    'current_usage': float(current_usage),
+                    'new_total': float(new_total),
+                    'limit': float(limit),
+                    'is_blocked': is_blocked,
+                    'payout_rate': payout_rate,
+                    'reason': reason,
+                    'status_class': status_class,
+                    'estimated_payout': float(actual_payout)
+                })
+                
+                # Add to row totals
+                row_result['total_amount'] += amount
+                row_result['estimated_payout'] += actual_payout
+                
+                # Add to summary
+                summary['total_amount'] += amount
+                summary['estimated_payout'] += actual_payout
+                summary['total_items'] += 1
+                
+                if payout_rate < 1.0:
+                    summary['reduced_payout_items'] += 1
+            
+            # Set row status based on details
+            if any(d['status_class'] == 'warning' for d in row_result['details']):
+                row_result['status'] = 'warning'
+                row_result['message'] = 'มีการจ่ายลดลง'
+            
+            validation_results.append(row_result)
+        
+        return jsonify({
+            'success': True,
+            'validation_results': [
+                {
+                    **result,
+                    'total_amount': float(result['total_amount']),
+                    'estimated_payout': float(result['estimated_payout'])
+                } for result in validation_results
+            ],
+            'summary': {
+                **summary,
+                'total_amount': float(summary['total_amount']),
+                'estimated_payout': float(summary['estimated_payout'])
+            },
+            'batch_id': batch_id,
+            'validated_at': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"DEBUG BULK: Exception occurred: {str(e)}")  # Debug log
+        print(f"DEBUG BULK: Exception type: {type(e).__name__}")  # Debug log
+        import traceback
+        print(f"DEBUG BULK: Traceback: {traceback.format_exc()}")  # Debug log
+        return jsonify({
+            'success': False,
+            'error': f'เกิดข้อผิดพลาดในการตรวจสอบ: {str(e)}'
+        }), 500
+
+@api_bp.route('/validate_single_item', methods=['POST'])
+@login_required 
+def validate_single_item():
+    """
+    Validate single order item
+    Returns current usage, limits, and payout calculation
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'ไม่มีข้อมูลที่ส่งมา'
+            }), 400
+        
+        print(f"DEBUG: Received data: {data}")  # Debug log
+        
+        number = data.get('number', '').strip()
+        amount_2_top = Decimal(str(data.get('amount_2_top', 0)))
+        amount_2_bottom = Decimal(str(data.get('amount_2_bottom', 0)))
+        amount_tote = Decimal(str(data.get('amount_tote', 0)))
+        
+        print(f"DEBUG: Parsed - number: {number}, top: {amount_2_top}, bottom: {amount_2_bottom}, tote: {amount_tote}")
+        
+        # Validate number format
+        clean_number = ''.join(filter(str.isdigit, number))
+        if not clean_number or len(clean_number) not in [2, 3]:
+            return jsonify({
+                'success': False,
+                'error': 'รูปแบบเลขไม่ถูกต้อง'
+            }), 400
+        
+        batch_id = LimitService._get_current_batch_id()
+        
+        # Determine which fields to check
+        fields_to_check = []
+        if len(clean_number) == 2:
+            if amount_2_top > 0:
+                fields_to_check.append(('2_top', amount_2_top))
+            if amount_2_bottom > 0:
+                fields_to_check.append(('2_bottom', amount_2_bottom))
+        elif len(clean_number) == 3:
+            if amount_2_top > 0:
+                fields_to_check.append(('3_top', amount_2_top))
+            if amount_tote > 0:
+                fields_to_check.append(('tote', amount_tote))
+        
+        if not fields_to_check:
+            return jsonify({
+                'success': False,
+                'error': 'ไม่มีจำนวนเงินที่จะซื้อ'
+            }), 400
+        
+        # Validate and calculate for each field
+        results = []
+        for field, amount in fields_to_check:
+            validation = LimitService.validate_order_item(field, clean_number, amount, batch_id)
+            
+            # Add display information
+            validation['field_display'] = LimitService._get_field_display_name(field)
+            validation['amount'] = float(amount)
+            validation['current_usage'] = float(validation['current_usage'])
+            validation['limit'] = float(validation['limit'])
+            
+            results.append(validation)
+        
+        return jsonify({
+            'success': True,
+            'number': number,
+            'clean_number': clean_number,
+            'results': results,
+            'batch_id': batch_id
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'เกิดข้อผิดพลาดในการตรวจสอบ: {str(e)}'
+        }), 500
+
+@api_bp.route('/get_current_totals/<field>/<number>')
+@login_required
+def get_current_totals(field, number):
+    """
+    Get current sales totals for specific number and field
+    Includes breakdown by time periods
+    """
+    try:
+        clean_number = ''.join(filter(str.isdigit, number))
+        batch_id = LimitService._get_current_batch_id()
+        
+        # Get current usage
+        current_usage = LimitService.get_current_usage(field, clean_number, batch_id)
+        limit = LimitService.get_individual_limit(field, clean_number)
+        default_limit = LimitService.get_default_group_limits().get(field, Decimal('0'))
+        is_blocked = LimitService.is_blocked_number(field, clean_number)
+        
+        # Get detailed breakdown (if needed)
+        total_record = NumberTotal.query.filter(
+            NumberTotal.batch_id == batch_id,
+            NumberTotal.field == field,
+            NumberTotal.number_norm == clean_number
         ).first()
         
-        if blocked:
-            errors.append(f'เลข {number} ในประเภท {field} ถูกอั้น')
+        return jsonify({
+            'success': True,
+            'field': field,
+            'field_display': LimitService._get_field_display_name(field),
+            'number': clean_number,
+            'current_usage': float(current_usage),
+            'limit': float(limit),
+            'default_limit': float(default_limit),
+            'remaining': float(limit - current_usage),
+            'usage_percent': float((current_usage / limit * 100)) if limit > 0 else 0,
+            'is_blocked': is_blocked,
+            'order_count': total_record.order_count if total_record else 0,
+            'batch_id': batch_id
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'เกิดข้อผิดพลาดในการดึงข้อมูล: {str(e)}'
+        }), 500
+
+@api_bp.route('/submit_bulk_order', methods=['POST'])
+@login_required
+def submit_bulk_order():
+    """
+    Submit bulk order with validation factors
+    Records validation factors for external payout calculation
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'orders' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid request data'
+            }), 400
+        
+        orders = data['orders']
+        customer_name = data.get('customer_name', '').strip()
+        batch_id = LimitService._get_current_batch_id()
+        
+        # Re-validate before submission to ensure data integrity
+        validation_response = validate_bulk_order_internal(orders, batch_id)
+        if not validation_response['success']:
+            return jsonify(validation_response), 400
+        
+        validation_results = validation_response['validation_results']
+        
+        # Create main order record
+        from app.models import Order, OrderItem
+        
+        total_amount = sum(
+            sum(detail['amount'] for detail in result['details'])
+            for result in validation_results
+            if result['status'] != 'error'
+        )
+        
+        new_order = Order(
+            user_id=current_user.id,
+            customer_name=customer_name,
+            total_amount=Decimal(str(total_amount)),
+            batch_id=batch_id,
+            status='confirmed'
+        )
+        
+        db.session.add(new_order)
+        db.session.flush()  # Get order ID
+        
+        # Create order items with validation factors
+        order_items = []
+        
+        for result in validation_results:
+            if result['status'] == 'error':
+                continue
+                
+            clean_number = ''.join(filter(str.isdigit, result['number']))
+            
+            for detail in result['details']:
+                order_item = OrderItem(
+                    order_id=new_order.id,
+                    number=result['number'],
+                    number_norm=clean_number,
+                    field=detail['field'],
+                    amount=Decimal(str(detail['amount'])),
+                    validation_factor=Decimal(str(detail['payout_rate'])),  # ⭐ สำคัญ!
+                    validation_reason=detail['reason'],
+                    current_usage_at_time=Decimal(str(detail['current_usage'])),
+                    limit_at_time=Decimal(str(detail['limit'])),
+                    is_blocked=detail['is_blocked']
+                )
+                
+                order_items.append(order_item)
+                db.session.add(order_item)
+        
+        # Update NumberTotal for tracking
+        for item in order_items:
+            # Find or create NumberTotal record
+            number_total = NumberTotal.query.filter(
+                NumberTotal.batch_id == batch_id,
+                NumberTotal.field == item.field,
+                NumberTotal.number_norm == item.number_norm
+            ).first()
+            
+            if number_total:
+                number_total.total_amount += item.amount
+                number_total.order_count += 1
+            else:
+                number_total = NumberTotal(
+                    batch_id=batch_id,
+                    field=item.field,
+                    number_norm=item.number_norm,
+                    total_amount=item.amount,
+                    order_count=1
+                )
+                db.session.add(number_total)
+        
+        # Commit transaction
+        db.session.commit()
+        
+        # Prepare response with validation factors for external calculation
+        external_calculation_data = []
+        
+        for item in order_items:
+            external_calculation_data.append({
+                'order_item_id': item.id,
+                'number': item.number,
+                'field': item.field,
+                'field_display': LimitService._get_field_display_name(item.field),
+                'amount': float(item.amount),
+                'validation_factor': float(item.validation_factor),  # ⭐ สำคัญ!
+                'validation_reason': item.validation_reason,
+                'for_external_calculation': {
+                    'base_rate': get_base_payout_rate(item.field),
+                    'suggested_payout': float(item.amount) * get_base_payout_rate(item.field) * float(item.validation_factor)
+                }
+            })
+        
+        return jsonify({
+            'success': True,
+            'message': 'บันทึกคำสั่งซื้อเรียบร้อย',
+            'order_id': new_order.id,
+            'total_amount': float(total_amount),
+            'total_items': len(order_items),
+            'customer_name': customer_name,
+            'batch_id': batch_id,
+            'external_calculation_data': external_calculation_data,  # ⭐ สำหรับคำนวณภายนอก
+            'validation_factors_recorded': True
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': f'เกิดข้อผิดพลาดในการบันทึก: {str(e)}'
+        }), 500
+
+def validate_bulk_order_internal(orders, batch_id):
+    """Internal validation function for reuse"""
+    validation_results = []
+    
+    for order in orders:
+        number = order.get('number', '').strip()
+        amount_2_top = Decimal(str(order.get('amount_2_top', 0)))
+        amount_2_bottom = Decimal(str(order.get('amount_2_bottom', 0)))
+        amount_tote = Decimal(str(order.get('amount_tote', 0)))
+        
+        # Validate number format
+        clean_number = ''.join(filter(str.isdigit, number))
+        if not clean_number or len(clean_number) not in [2, 3]:
+            validation_results.append({
+                'number': number,
+                'status': 'error',
+                'message': 'รูปแบบเลขไม่ถูกต้อง',
+                'details': []
+            })
             continue
         
-        # Check limit
-        # ... (implement limit checking logic)
+        row_result = {
+            'number': number,
+            'status': 'success',
+            'message': 'ตรวจสอบเรียบร้อย',
+            'details': []
+        }
         
-        total_amount += amount
+        # Check each field that has amount > 0
+        fields_to_check = []
+        
+        if len(clean_number) == 2:
+            if amount_2_top > 0:
+                fields_to_check.append(('2_top', amount_2_top))
+            if amount_2_bottom > 0:
+                fields_to_check.append(('2_bottom', amount_2_bottom))
+        elif len(clean_number) == 3:
+            if amount_2_top > 0:
+                fields_to_check.append(('3_top', amount_2_top))
+            if amount_tote > 0:
+                fields_to_check.append(('tote', amount_tote))
+        
+        if not fields_to_check:
+            validation_results.append({
+                'number': number,
+                'status': 'warning',
+                'message': 'ไม่มีจำนวนเงินที่จะซื้อ',
+                'details': []
+            })
+            continue
+        
+        # Validate each field
+        for field, amount in fields_to_check:
+            current_usage = LimitService.get_current_usage(field, clean_number, batch_id)
+            limit = LimitService.get_individual_limit(field, clean_number)
+            is_blocked = LimitService.is_blocked_number(field, clean_number)
+            
+            new_total = current_usage + amount
+            
+            # Determine validation factor
+            payout_rate = 1.0
+            reason = 'ปกติ'
+            
+            if is_blocked:
+                payout_rate = 0.5
+                reason = 'เลขอั้น - Factor 0.5x'
+            elif new_total > limit:
+                payout_rate = 0.5
+                reason = 'มียอดซื้อเกินโควต้า - Factor 0.5x'
+            
+            row_result['details'].append({
+                'field': field,
+                'field_display': LimitService._get_field_display_name(field),
+                'amount': float(amount),
+                'current_usage': float(current_usage),
+                'new_total': float(new_total),
+                'limit': float(limit),
+                'is_blocked': is_blocked,
+                'payout_rate': payout_rate,  # ⭐ Validation Factor
+                'reason': reason
+            })
+        
+        validation_results.append(row_result)
     
-    return jsonify({
-        'valid': len(errors) == 0,
-        'errors': errors,
-        'total_amount': total_amount
-    })
+    return {
+        'success': True,
+        'validation_results': validation_results
+    }
+
+def get_base_payout_rate(field):
+    """Get base payout rate from database for external calculation reference"""
+    return LimitService.get_base_payout_rate(field)
+
+@api_bp.route('/get_payout_rates')
+@login_required
+def get_payout_rates():
+    """Get all base payout rates from database"""
+    try:
+        rates = LimitService.get_base_payout_rates()
+        return jsonify({
+            'success': True,
+            'rates': rates
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'เกิดข้อผิดพลาดในการโหลดอัตราจ่าย: {str(e)}'
+        }), 500
 
