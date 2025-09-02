@@ -1,0 +1,532 @@
+{% extends "admin/base.html" %}
+
+{% block title %}จัดการอัตราการจ่าย - {{ super() }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.rate-card {
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.rate-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border-color: #0d6efd;
+}
+
+.rate-display {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #198754;
+    font-family: 'Courier New', monospace;
+}
+
+.field-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.icon-2-top { color: #ff6b6b; }
+.icon-2-bottom { color: #4ecdc4; }
+.icon-3-top { color: #45b7d1; }
+.icon-tote { color: #f9ca24; }
+
+.edit-mode .rate-display {
+    display: none;
+}
+
+.edit-mode .edit-form {
+    display: block !important;
+}
+
+.edit-form {
+    display: none;
+}
+
+.btn-edit {
+    background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    color: white;
+}
+
+.btn-edit:hover {
+    background: linear-gradient(45deg, #764ba2 0%, #667eea 100%);
+    color: white;
+}
+
+.btn-save {
+    background: linear-gradient(45deg, #56ab2f 0%, #a8e6cf 100%);
+    border: none;
+    color: white;
+}
+
+.btn-save:hover {
+    background: linear-gradient(45deg, #a8e6cf 0%, #56ab2f 100%);
+    color: white;
+}
+
+.current-rates-info {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+}
+
+.rate-comparison {
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 1rem;
+    margin-top: 1rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- CSRF Token for JavaScript -->
+<meta name="csrf-token" content="{{ csrf_token() }}">
+
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">
+                        <i class="fas fa-coins me-2"></i>จัดการอัตราการจ่าย
+                    </h2>
+                    <p class="text-muted mb-0">ตั้งค่าอัตราการจ่ายสำหรับแต่ละประเภทหวย</p>
+                </div>
+                <div>
+                    <button class="btn btn-outline-primary" onclick="resetAllRates()">
+                        <i class="fas fa-undo me-2"></i>รีเซ็ตเป็นค่าเริ่มต้น
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Current Rates Overview -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="current-rates-info">
+                <h5><i class="fas fa-chart-line me-2"></i>สรุปอัตราการจ่ายปัจจุบัน</h5>
+                <div class="row rate-comparison">
+                    <div class="col-md-3 text-center">
+                        <div class="h6">2 ตัวบน</div>
+                        <div class="h4">{{ "{:,}".format(current_rates.get('2_top', 90)) }}</div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="h6">2 ตัวล่าง</div>
+                        <div class="h4">{{ "{:,}".format(current_rates.get('2_bottom', 90)) }}</div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="h6">3 ตัวบน</div>
+                        <div class="h4">{{ "{:,}".format(current_rates.get('3_top', 900)) }}</div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="h6">โต๊ด</div>
+                        <div class="h4">{{ "{:,}".format(current_rates.get('tote', 150)) }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payout Rate Cards -->
+    <div class="row">
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="card rate-card h-100" id="card-2_top">
+                <div class="card-body text-center">
+                    <div class="field-icon icon-2-top">
+                        <i class="fas fa-sort-numeric-up"></i>
+                    </div>
+                    <h5 class="card-title">2 ตัวบน</h5>
+                    <div class="rate-display" id="rate-2_top">
+                        {{ "{:,}".format(current_rates.get('2_top', 90)) }}
+                    </div>
+                    <p class="text-muted">บาทต่อบาท</p>
+                    
+                    <!-- Edit Form -->
+                    <div class="edit-form">
+                        <div class="input-group mb-3">
+                            <input type="number" class="form-control" id="input-2_top" 
+                                   value="{{ current_rates.get('2_top', 90) }}" min="1" max="9999">
+                            <span class="input-group-text">บาท</span>
+                        </div>
+                        <div class="btn-group w-100">
+                            <button class="btn btn-save" onclick="saveRate('2_top')">
+                                <i class="fas fa-save me-1"></i>บันทึก
+                            </button>
+                            <button class="btn btn-secondary" onclick="cancelEdit('2_top')">
+                                <i class="fas fa-times me-1"></i>ยกเลิก
+                            </button>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-edit w-100 edit-btn" onclick="editRate('2_top')">
+                        <i class="fas fa-edit me-2"></i>แก้ไข
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="card rate-card h-100" id="card-2_bottom">
+                <div class="card-body text-center">
+                    <div class="field-icon icon-2-bottom">
+                        <i class="fas fa-sort-numeric-down"></i>
+                    </div>
+                    <h5 class="card-title">2 ตัวล่าง</h5>
+                    <div class="rate-display" id="rate-2_bottom">
+                        {{ "{:,}".format(current_rates.get('2_bottom', 90)) }}
+                    </div>
+                    <p class="text-muted">บาทต่อบาท</p>
+                    
+                    <!-- Edit Form -->
+                    <div class="edit-form">
+                        <div class="input-group mb-3">
+                            <input type="number" class="form-control" id="input-2_bottom" 
+                                   value="{{ current_rates.get('2_bottom', 90) }}" min="1" max="9999">
+                            <span class="input-group-text">บาท</span>
+                        </div>
+                        <div class="btn-group w-100">
+                            <button class="btn btn-save" onclick="saveRate('2_bottom')">
+                                <i class="fas fa-save me-1"></i>บันทึก
+                            </button>
+                            <button class="btn btn-secondary" onclick="cancelEdit('2_bottom')">
+                                <i class="fas fa-times me-1"></i>ยกเลิก
+                            </button>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-edit w-100 edit-btn" onclick="editRate('2_bottom')">
+                        <i class="fas fa-edit me-2"></i>แก้ไข
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="card rate-card h-100" id="card-3_top">
+                <div class="card-body text-center">
+                    <div class="field-icon icon-3-top">
+                        <i class="fas fa-trophy"></i>
+                    </div>
+                    <h5 class="card-title">3 ตัวบน</h5>
+                    <div class="rate-display" id="rate-3_top">
+                        {{ "{:,}".format(current_rates.get('3_top', 900)) }}
+                    </div>
+                    <p class="text-muted">บาทต่อบาท</p>
+                    
+                    <!-- Edit Form -->
+                    <div class="edit-form">
+                        <div class="input-group mb-3">
+                            <input type="number" class="form-control" id="input-3_top" 
+                                   value="{{ current_rates.get('3_top', 900) }}" min="1" max="9999">
+                            <span class="input-group-text">บาท</span>
+                        </div>
+                        <div class="btn-group w-100">
+                            <button class="btn btn-save" onclick="saveRate('3_top')">
+                                <i class="fas fa-save me-1"></i>บันทึก
+                            </button>
+                            <button class="btn btn-secondary" onclick="cancelEdit('3_top')">
+                                <i class="fas fa-times me-1"></i>ยกเลิก
+                            </button>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-edit w-100 edit-btn" onclick="editRate('3_top')">
+                        <i class="fas fa-edit me-2"></i>แก้ไข
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="card rate-card h-100" id="card-tote">
+                <div class="card-body text-center">
+                    <div class="field-icon icon-tote">
+                        <i class="fas fa-dice-three"></i>
+                    </div>
+                    <h5 class="card-title">โต๊ด</h5>
+                    <div class="rate-display" id="rate-tote">
+                        {{ "{:,}".format(current_rates.get('tote', 150)) }}
+                    </div>
+                    <p class="text-muted">บาทต่อบาท</p>
+                    
+                    <!-- Edit Form -->
+                    <div class="edit-form">
+                        <div class="input-group mb-3">
+                            <input type="number" class="form-control" id="input-tote" 
+                                   value="{{ current_rates.get('tote', 150) }}" min="1" max="9999">
+                            <span class="input-group-text">บาท</span>
+                        </div>
+                        <div class="btn-group w-100">
+                            <button class="btn btn-save" onclick="saveRate('tote')">
+                                <i class="fas fa-save me-1"></i>บันทึก
+                            </button>
+                            <button class="btn btn-secondary" onclick="cancelEdit('tote')">
+                                <i class="fas fa-times me-1"></i>ยกเลิก
+                            </button>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-edit w-100 edit-btn" onclick="editRate('tote')">
+                        <i class="fas fa-edit me-2"></i>แก้ไข
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Information Panel -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>ข้อมูลเพิ่มเติม
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>วิธีการคำนวณ</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-arrow-right text-primary me-2"></i>จำนวนเงินที่ชนะ = จำนวนเงินซื้อ × อัตราการจ่าย</li>
+                                <li><i class="fas fa-arrow-right text-primary me-2"></i>หากเป็นเลขอั้น จะจ่ายครึ่งเท่า (×0.5)</li>
+                                <li><i class="fas fa-arrow-right text-primary me-2"></i>หากซื้อเกินขีดจำกัด จะจ่ายครึ่งเท่า (×0.5)</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>อัตราการจ่ายมาตรฐาน</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-star text-warning me-2"></i>2 ตัวบน/ล่าง: 90 บาท</li>
+                                <li><i class="fas fa-star text-warning me-2"></i>3 ตัวบน: 900 บาท</li>
+                                <li><i class="fas fa-star text-warning me-2"></i>โต๊ด: 150 บาท</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">กำลังบันทึก...</span>
+                </div>
+                <p class="mt-2 mb-0">กำลังอัปเดตอัตราการจ่าย...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function editRate(field) {
+    const card = document.getElementById(`card-${field}`);
+    const editBtn = card.querySelector('.edit-btn');
+    
+    card.classList.add('edit-mode');
+    editBtn.style.display = 'none';
+}
+
+function cancelEdit(field) {
+    const card = document.getElementById(`card-${field}`);
+    const editBtn = card.querySelector('.edit-btn');
+    const input = document.getElementById(`input-${field}`);
+    const currentRate = document.getElementById(`rate-${field}`).textContent.replace(/,/g, '');
+    
+    // Reset input value
+    input.value = currentRate;
+    
+    card.classList.remove('edit-mode');
+    editBtn.style.display = 'block';
+}
+
+async function saveRate(field) {
+    const input = document.getElementById(`input-${field}`);
+    const rate = parseInt(input.value);
+    
+    if (!rate || rate < 1) {
+        alert('กรุณาใส่อัตราการจ่ายที่ถูกต้อง');
+        return;
+    }
+    
+    // Show loading modal
+    const loadingModalElement = document.getElementById('loadingModal');
+    if (!window.loadingModal && typeof bootstrap !== 'undefined') {
+        window.loadingModal = new bootstrap.Modal(loadingModalElement);
+    }
+    
+    if (window.loadingModal && typeof window.loadingModal.show === 'function') {
+        window.loadingModal.show();
+    } else {
+        // Fallback: show modal manually
+        loadingModalElement.classList.add('show');
+        loadingModalElement.style.display = 'block';
+        document.body.classList.add('modal-open');
+    }
+    
+    try {
+        const response = await fetch('/admin/api/update_payout_rate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': window.csrfToken
+            },
+            body: JSON.stringify({
+                field: field,
+                rate: rate
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Update display
+            document.getElementById(`rate-${field}`).textContent = rate.toLocaleString();
+            
+            // Update overview
+            updateOverview();
+            
+            // Exit edit mode
+            cancelEdit(field);
+            
+            // Show success message
+            showAlert('success', result.message);
+        } else {
+            showAlert('error', result.error || 'เกิดข้อผิดพลาดในการอัปเดต');
+        }
+    } catch (error) {
+        showAlert('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
+        console.error('Error:', error);
+    } finally {
+        // Hide loading modal
+        const loadingModalElement = document.getElementById('loadingModal');
+        if (window.loadingModal && typeof window.loadingModal.hide === 'function') {
+            window.loadingModal.hide();
+        } else {
+            // Fallback: hide modal manually
+            loadingModalElement.classList.remove('show');
+            loadingModalElement.style.display = 'none';
+            document.body.classList.remove('modal-open');
+        }
+    }
+}
+
+function updateOverview() {
+    const fields = ['2_top', '2_bottom', '3_top', 'tote'];
+    const overview = document.querySelector('.rate-comparison');
+    
+    fields.forEach((field, index) => {
+        const rate = document.getElementById(`rate-${field}`).textContent;
+        const overviewRate = overview.children[index].querySelector('.h4');
+        overviewRate.textContent = rate;
+    });
+}
+
+async function resetAllRates() {
+    if (!confirm('คุณต้องการรีเซ็ตอัตราการจ่ายทั้งหมดเป็นค่าเริ่มต้นหรือไม่?')) {
+        return;
+    }
+    
+    const defaultRates = {
+        '2_top': 90,
+        '2_bottom': 90,
+        '3_top': 900,
+        'tote': 150
+    };
+    
+    // Show loading modal
+    const loadingModalElement = document.getElementById('loadingModal');
+    let loadingModal;
+    if (typeof bootstrap !== 'undefined') {
+        loadingModal = new bootstrap.Modal(loadingModalElement);
+        loadingModal.show();
+    } else {
+        // Fallback: show modal manually
+        loadingModalElement.classList.add('show');
+        loadingModalElement.style.display = 'block';
+        document.body.classList.add('modal-open');
+    }
+    
+    try {
+        for (const [field, rate] of Object.entries(defaultRates)) {
+            const response = await fetch('/admin/api/update_payout_rate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': window.csrfToken
+                },
+                body: JSON.stringify({
+                    field: field,
+                    rate: rate
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Failed to update ${field}`);
+            }
+        }
+        
+        // Reload page to show updated values
+        window.location.reload();
+        
+    } catch (error) {
+        showAlert('error', 'เกิดข้อผิดพลาดในการรีเซ็ต');
+        console.error('Error:', error);
+        // Hide modal on error
+        if (loadingModal && typeof loadingModal.hide === 'function') {
+            loadingModal.hide();
+        } else {
+            // Fallback: hide modal manually
+            loadingModalElement.classList.remove('show');
+            loadingModalElement.style.display = 'none';
+            document.body.classList.remove('modal-open');
+        }
+    }
+}
+
+function showAlert(type, message) {
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const iconClass = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle';
+    
+    const alertHtml = `
+        <div class="alert ${alertClass} alert-dismissible fade show position-fixed" 
+             style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;" role="alert">
+            <i class="fas ${iconClass} me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', alertHtml);
+    
+    // Auto dismiss after 5 seconds
+    setTimeout(() => {
+        const alert = document.querySelector('.alert');
+        if (alert) {
+            alert.remove();
+        }
+    }, 5000);
+}
+
+// Initialize CSRF token
+document.addEventListener('DOMContentLoaded', function() {
+    // Get CSRF token from meta tag or hidden input
+    const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || 
+                     document.querySelector('meta[name="csrf-token"]')?.content;
+    if (csrfToken) {
+        window.csrfToken = csrfToken;
+    }
+});
+</script>
+{% endblock %}

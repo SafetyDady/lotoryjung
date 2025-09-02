@@ -136,6 +136,14 @@
                         </li>
                         
                         <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'admin.payout_rates' %}active{% endif %}" 
+                               href="{{ url_for('admin.payout_rates') }}">
+                                <i class="fas fa-coins me-2"></i>
+                                อัตราการจ่าย
+                            </a>
+                        </li>
+                        
+                        <li class="nav-item">
                             <div class="nav-link text-muted small text-uppercase fw-bold">
                                 <i class="fas fa-users me-2"></i>จัดการผู้ใช้
                             </div>

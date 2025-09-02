@@ -9,8 +9,11 @@
 - **External Calculation Architecture** - รองรับการคำนวณจากระบบภายนอก
 - **Complete Database Integration** - บันทึกข้อมูลครบถ้วนในฐานข้อมูล
 
-### 💾 Database-Driven Payout System (COMPLETED) ⭐
-- **Dynamic Payout Rates** - ดึงอัตราการจ่ายจากฐานข้อมูล
+### 💾 Database-Driven Payout System (COMPLETED) - ✅ **External Calculation Support (COMPLETED) ⭐
+- ✅ **Message Text Updates ("มียอดซื้อเกินโควต้า") ⭐
+- ✅ **Legacy Database Compatibility (COMPLETED) ⭐
+- ✅ **Complete Order Submission & Tracking (COMPLETED) ⭐
+- ✅ **Admin Payout Rate Management (NEW) ⭐**Dynamic Payout Rates** - ดึงอัตราการจ่ายจากฐานข้อมูล
 - **External Calculation Support** - รองรับการคำนวณจากระบบภายนอก
 - **Validation Factors** - บันทึกปัจจัยการตรวจสอบ (1.0x หรือ 0.5x)
 - **Message Text Updates** - ข้อความเตือน "มียอดซื้อเกินโควต้า"
@@ -287,6 +290,22 @@ python app.py
 - Advanced filtering and search
 - Modal-based CRUD operations
 
+### 💰 Payout Rate Management (NEW) ⭐
+- **URL**: `/admin/payout_rates`
+- **Real-time Rate Updates** - แก้ไขอัตราการจ่ายแบบเรียลไทม์
+- **Visual Rate Cards** - แสดงอัตราการจ่ายแต่ละประเภทด้วย cards สีสวย
+- **In-place Editing** - แก้ไขได้ทันทีโดยไม่ต้องเปลี่ยนหน้า
+- **Loading Modals** - แสดงสถานะการบันทึกพร้อม spinner
+- **Reset to Defaults** - รีเซ็ตอัตราการจ่ายเป็นค่าเริ่มต้น
+- **Audit Logging** - บันทึกการเปลี่ยนแปลงทุกครั้งพร้อม user และ IP
+- **CSRF Protection** - ป้องกันการโจมตี Cross-Site Request Forgery
+- **Error Handling** - จัดการข้อผิดพลาดและแสดงข้อความเตือน
+- **Rate Types Supported**:
+  - 2 ตัวบน (2_top) - Default: 90 บาท
+  - 2 ตัวล่าง (2_bottom) - Default: 90 บาท  
+  - 3 ตัวบน (3_top) - Default: 900 บาท
+  - โต๊ด (tote) - Default: 150 บาท
+
 ## 🔧 API Endpoints
 
 ### Bulk Order Validation APIs (COMPLETED) ⭐
@@ -402,6 +421,33 @@ Content-Type: application/json
 
 # Get Dashboard Data
 GET /admin/group_limits/api/dashboard_data?batch_id=20250902
+```
+
+### Payout Rate Management APIs (NEW) ⭐
+```http
+# Update Payout Rate
+POST /admin/api/update_payout_rate
+Content-Type: application/json
+X-CSRFToken: <token>
+
+{
+    "field": "2_top",
+    "rate": 95
+}
+
+# Response
+{
+    "success": true,
+    "message": "อัตราการจ่าย 2 ตัวบน อัปเดตเป็น 95 บาทเรียบร้อยแล้ว",
+    "rate": 95,
+    "field": "2_top"
+}
+
+# Error Response
+{
+    "success": false,
+    "error": "อัตราการจ่ายต้องเป็นตัวเลขที่มากกว่า 0"
+}
 ```
 
 ## 🎨 Frontend Technologies
@@ -637,7 +683,7 @@ flask db upgrade
 
 ## 📊 System Status
 
-**Current Version**: 2.1 (Complete Bulk Order System + External Calculation)  
+**Current Version**: 2.1.1 (Complete System + Admin Payout Management Fixes)  
 **Last Updated**: September 2, 2025  
 **Status**: Production Ready ✅ All Features Operational & Tested
 
@@ -655,15 +701,23 @@ flask db upgrade
 - ✅ Message Text Updates ("มียอดซื้อเกินโควต้า") ⭐
 - ✅ Legacy Database Compatibility (COMPLETED) ⭐
 - ✅ Complete Order Submission & Tracking (COMPLETED) ⭐
+- ✅ Admin Payout Rate Management (COMPLETED & DEBUGGED) ⭐
 
-### Recent Updates (Version 2.1)
+### Recent Updates (Version 2.1.1)
+- ✅ **Admin Payout Rate Management**: แก้ไขปัญหา audit_log และ loading modal
+- ✅ **CSRF Token Integration**: เพิ่ม CSRF token ในหน้า admin templates
+- ✅ **JavaScript Modal Fixes**: แก้ไขปัญหา Bootstrap modal ไม่ปิดหลังบันทึก
+- ✅ **Error Handling Improvements**: ปรับปรุงการจัดการข้อผิดพลาดใน admin interface
+- ✅ **Audit Log Functionality**: แก้ไขการบันทึก audit log ให้ทำงานถูกต้อง
+- ✅ **Code Cleanup (v2.1.1)**: ลบไฟล์ template ที่ไม่ใช้และรวม navigation links
+
+### Previous Updates (Version 2.1)
 - ✅ **Bulk Order Form**: สมบูรณ์ - รองรับ 20 บรรทัด, 2-step validation
 - ✅ **Database Integration**: บันทึกครบถ้วน - Orders, OrderItems, NumberTotals
 - ✅ **External Calculation**: รองรับการคำนวณภายนอกผ่าน validation_factor
 - ✅ **Legacy Compatibility**: รองรับ schema เก่าและใหม่พร้อมกัน
 - ✅ **Field Mapping**: แก้ไขปัญหา compatibility ระหว่าง database fields
 - ✅ **Order Tracking**: สร้าง Order Number อัตโนมัติและติดตามครบถ้วน
-- ✅ **Code Cleanup**: ลบ form เก่าที่ไม่ใช้ (new_order.html, order_form.html)
 - ✅ **Unified Interface**: ใช้ bulk_order_form.html เดียวสำหรับทุกการสั่งซื้อ
 
 ### Technical Specifications
@@ -675,18 +729,29 @@ flask db upgrade
 
 ---
 
-**🚀 เวอร์ชั่นใหม่: Complete Bulk Order System พร้อมใช้งานเต็มรูปแบบ!**  
-**👨‍💻 พัฒนาโดย SafetyDady | 📅 September 2, 2025 | 🌟 Version 2.1**
-- ✅ Order Management  
-- ✅ Blocked Numbers Management
+**🚀 เวอร์ชั่นใหม่: Complete Bulk Order System + Admin Payout Management พร้อมใช้งานเต็มรูปแบบ!**  
+**👨‍💻 พัฒนาโดย SafetyDady | 📅 September 2, 2025 | 🌟 Version 2.1.1**
+
+### ✅ ระบบที่สมบูรณ์แล้ว:
+- ✅ Order Management System
+- ✅ Blocked Numbers Management  
 - ✅ Group Limits Management
 - ✅ Individual Number Limits (COMPLETED)
 - ✅ Bulk Order Form System (COMPLETED)
 - ✅ External Calculation Architecture (COMPLETED)
-- ✅ Individual Limits Management
-- ✅ Admin Dashboard
-- ✅ Security Implementation
-- ✅ API Endpoints
-- ✅ Documentation
+- ✅ Admin Dashboard with Full Security
+- ✅ API Endpoints with CSRF Protection
+- ✅ **Admin Payout Rate Management (COMPLETED & DEBUGGED)** ⭐
+- ✅ **Audit Logging & Error Handling** ⭐
+- ✅ **Loading Modals & User Experience** ⭐
 
-**🎉 Ready for production use with comprehensive lottery management capabilities!**
+### 🐛 ปัญหาที่แก้ไขใน v2.1.1:
+- ✅ แก้ไข `audit_log is not defined` error ใน admin routes
+- ✅ แก้ไข loading modal ที่ไม่ปิดหลังบันทึกเสร็จ  
+- ✅ เพิ่ม CSRF token ใน admin templates
+- ✅ ปรับปรุงการจัดการ Bootstrap modal lifecycle
+- ✅ เพิ่ม fallback สำหรับกรณีที่ Bootstrap ยังโหลดไม่เสร็จ
+- ✅ ปรับปรุง error handling ใน JavaScript functions
+
+**🎉 Ready for production use with comprehensive lottery management capabilities!**  
+**🔧 All critical bugs fixed, all features tested and operational!**

@@ -593,65 +593,22 @@ def api_update_group_limit():
 @login_required
 @admin_required
 def individual_limits():
-    """Individual Number Limits Management page"""
+    """Individual number limits management page"""
     try:
-        print("DEBUG: Starting individual_limits route")
-        
-        # Get default limits
-        print("DEBUG: Getting default limits...")
-        default_limits = LimitService.get_default_group_limits()
-        print(f"DEBUG: Default limits: {default_limits}")
-        
-        # Get individual limits list
-        print("DEBUG: Getting individual limits list...")
-        individual_limits = LimitService.get_individual_limits_list()
-        print(f"DEBUG: Individual limits count: {len(individual_limits)}")
-        
-        # Get current usage for each individual limit
-        print("DEBUG: Getting batch ID...")
-        batch_id = LimitService._get_current_batch_id()
-        print(f"DEBUG: Batch ID: {batch_id}")
-        
-        print("DEBUG: Processing individual limits...")
-        for i, limit in enumerate(individual_limits):
-            print(f"DEBUG: Processing limit {i+1}: {limit}")
-            try:
-                limit['current_usage'] = LimitService.get_current_usage(
-                    limit['field'], 
-                    limit['number_norm'], 
-                    batch_id
-                )
-                print(f"DEBUG: Current usage for {limit['field']}-{limit['number_norm']}: {limit['current_usage']}")
-            except Exception as usage_error:
-                print(f"DEBUG: Error getting usage for {limit}: {str(usage_error)}")
-                limit['current_usage'] = 0
-        
-        # Field display data
-        field_names = {
-            '2_top': '2 ตัวบน',
-            '2_bottom': '2 ตัวล่าง', 
-            '3_top': '3 ตัวบน',
-            'tote': 'โต๊ด'
-        }
-        
-        field_colors = {
-            '2_top': 'primary',
-            '2_bottom': 'success',
-            '3_top': 'warning',
-            'tote': 'info'
-        }
-        
-        print("DEBUG: Rendering template...")
-        return render_template('admin/individual_limits.html',
-                             default_limits=default_limits,
-                             individual_limits=individual_limits,
-                             field_names=field_names,
-                             field_colors=field_colors)
-                             
+        return render_template('admin/individual_limits.html')
     except Exception as e:
-        print(f"DEBUG: Exception in individual_limits route: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        flash(f'เกิดข้อผิดพลาด: {str(e)}', 'error')
+        return redirect(url_for('admin.dashboard'))
+
+@admin_bp.route('/payout_rates')
+@login_required
+@admin_required
+def payout_rates():
+    """Payout rates management page"""
+    try:
+        current_rates = LimitService.get_base_payout_rates()
+        return render_template('admin/payout_rates.html', current_rates=current_rates)
+    except Exception as e:
         flash(f'เกิดข้อผิดพลาด: {str(e)}', 'error')
         return redirect(url_for('admin.dashboard'))
 
@@ -774,3 +731,51 @@ def api_delete_individual_limit():
             'success': False,
             'error': str(e)
         })
+
+@admin_bp.route('/api/update_payout_rate', methods=['POST'])
+@login_required
+@admin_required
+def api_update_payout_rate():
+    """API endpoint to update payout rate"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'})
+        
+        field = data.get('field')
+        rate = data.get('rate')
+        
+        if not field or rate is None:
+            return jsonify({'success': False, 'error': 'Missing required fields'})
+        
+        # Validate rate
+        try:
+            rate = int(rate)
+            if rate < 0:
+                return jsonify({'success': False, 'error': 'Rate must be positive'})
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Invalid rate value'})
+        
+        # Update the payout rate
+        success = LimitService.set_base_payout_rate(field, rate)
+        
+        if success:
+            # Create audit log
+            audit_log_entry = AuditLog(
+                user_id=current_user.id,
+                action='update_payout_rate',
+                details=f'Updated payout rate for {field}: {rate}',
+                ip_address=request.remote_addr
+            )
+            db.session.add(audit_log_entry)
+            db.session.commit()
+            
+            return jsonify({
+                'success': True, 
+                'message': f'อัปเดตอัตราการจ่าย {LimitService._get_field_display_name(field)} เป็น {rate:,} สำเร็จ'
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Failed to update payout rate'})
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
