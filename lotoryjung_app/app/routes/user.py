@@ -68,19 +68,17 @@ def order_detail(order_id):
 @user_bp.route('/new_order')
 @login_required
 def new_order():
-    """New order form"""
+    """New order form - redirect to bulk order form"""
     if current_user.is_admin():
-        return redirect(url_for('admin.new_order'))
+        return redirect(url_for('user.bulk_order'))
     
-    return render_template('user/new_order.html')
+    # Redirect to bulk_order_form as it handles both single and multiple orders
+    return redirect(url_for('user.bulk_order'))
 
 @user_bp.route('/bulk_order_form')
 @login_required
 def bulk_order():
-    """Bulk order form with 2-step validation"""
-    if current_user.is_admin():
-        return redirect(url_for('user.bulk_order'))  # Admin can also use this form
-    
+    """Bulk order form with 2-step validation (handles both single and multiple orders)"""
     return render_template('user/bulk_order_form.html')
 
 @user_bp.route('/profile')

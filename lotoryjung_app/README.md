@@ -663,6 +663,8 @@ flask db upgrade
 - ✅ **Legacy Compatibility**: รองรับ schema เก่าและใหม่พร้อมกัน
 - ✅ **Field Mapping**: แก้ไขปัญหา compatibility ระหว่าง database fields
 - ✅ **Order Tracking**: สร้าง Order Number อัตโนมัติและติดตามครบถ้วน
+- ✅ **Code Cleanup**: ลบ form เก่าที่ไม่ใช้ (new_order.html, order_form.html)
+- ✅ **Unified Interface**: ใช้ bulk_order_form.html เดียวสำหรับทุกการสั่งซื้อ
 
 ### Technical Specifications
 - **Framework**: Flask 2.3+
