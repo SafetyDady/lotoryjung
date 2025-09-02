@@ -1,15 +1,18 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from flask_wtf import FlaskForm
-from wtforms import StringField, SelectField, TextAreaField, SubmitField, BooleanField
-from wtforms.validators import DataRequired, Length
+from wtforms import StringField, SelectField, TextAreaField, SubmitField, BooleanField, DecimalField
+from wtforms.validators import DataRequired, Length, NumberRange
 from functools import wraps
+from decimal import Decimal
+from sqlalchemy import func
 from app.models import User, Order, OrderItem, Rule, BlockedNumber, AuditLog, NumberTotal
 from app.utils.number_utils import (
     generate_blocked_numbers_for_field, 
     validate_bulk_numbers, 
     preview_bulk_blocked_numbers
 )
+from app.services.limit_service import LimitService
 from app import db
 
 admin_bp = Blueprint('admin', __name__)
@@ -33,6 +36,21 @@ class BulkBlockedNumberForm(FlaskForm):
     reason = TextAreaField('เหตุผลทั่วไป', validators=[Length(max=255)])
     is_active = BooleanField('เปิดใช้งานทั้งหมด', default=True)
     submit = SubmitField('บันทึกทั้งหมด')
+
+class GroupLimitForm(FlaskForm):
+    limit_2_top = DecimalField('ขีดจำกัด 2 ตัวบน (บาท)', 
+                              validators=[DataRequired(), NumberRange(min=0)],
+                              default=1000000)
+    limit_2_bottom = DecimalField('ขีดจำกัด 2 ตัวล่าง (บาท)', 
+                                 validators=[DataRequired(), NumberRange(min=0)],
+                                 default=800000)
+    limit_3_top = DecimalField('ขีดจำกัด 3 ตัวบน (บาท)', 
+                              validators=[DataRequired(), NumberRange(min=0)],
+                              default=500000)
+    limit_tote = DecimalField('ขีดจำกัดโต๊ด (บาท)', 
+                             validators=[DataRequired(), NumberRange(min=0)],
+                             default=300000)
+    submit = SubmitField('บันทึกการตั้งค่า')
 
 def admin_required(f):
     """Decorator to require admin access"""
@@ -91,7 +109,33 @@ def validate_bulk_numbers_new_format(numbers_data):
 @admin_required
 def dashboard():
     """Admin dashboard"""
-    return render_template('admin/dashboard.html')
+    try:
+        # Get basic stats
+        stats = {
+            'total_orders': Order.query.count(),
+            'total_amount': db.session.query(func.sum(Order.total_amount)).scalar() or 0,
+            'total_users': User.query.count(),
+            'blocked_numbers_count': BlockedNumber.query.filter(BlockedNumber.is_active == True).count()
+        }
+        
+        # Get recent orders
+        recent_orders = Order.query.order_by(Order.created_at.desc()).limit(5).all()
+        
+        return render_template('admin/dashboard.html', 
+                             stats=stats, 
+                             recent_orders=recent_orders)
+    except Exception as e:
+        flash(f'เกิดข้อผิดพลาดในการโหลดข้อมูล: {str(e)}', 'error')
+        # Return basic stats in case of error
+        stats = {
+            'total_orders': 0,
+            'total_amount': 0,
+            'total_users': 0,
+            'blocked_numbers_count': 0
+        }
+        return render_template('admin/dashboard.html', 
+                             stats=stats, 
+                             recent_orders=[])
 
 @admin_bp.route('/blocked_numbers')
 @login_required  
@@ -383,3 +427,350 @@ def users():
 def reports():
     """Reports and analytics"""
     return render_template('admin/reports.html')
+
+
+# Group Limits Management
+@admin_bp.route('/group_limits')
+@login_required
+@admin_required
+def group_limits():
+    """Group limits dashboard"""
+    try:
+        dashboard_data = LimitService.get_limits_dashboard_data()
+        return render_template('admin/group_limits.html', 
+                             dashboard_data=dashboard_data,
+                             title='จัดการขีดจำกัดกลุ่มเลข')
+    except Exception as e:
+        flash(f'เกิดข้อผิดพลาด: {str(e)}', 'error')
+        return redirect(url_for('admin.dashboard'))
+
+
+@admin_bp.route('/group_limits/edit', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def edit_group_limits():
+    """Edit group limits"""
+    form = GroupLimitForm()
+    
+    if request.method == 'GET':
+        # Load current limits
+        current_limits = LimitService.get_default_group_limits()
+        form.limit_2_top.data = current_limits.get('2_top', Decimal('700'))
+        form.limit_2_bottom.data = current_limits.get('2_bottom', Decimal('600'))
+        form.limit_3_top.data = current_limits.get('3_top', Decimal('500'))
+        form.limit_tote.data = current_limits.get('tote', Decimal('400'))
+    
+    if form.validate_on_submit():
+        try:
+            # Update all limits
+            updates = [
+                ('2_top', form.limit_2_top.data),
+                ('2_bottom', form.limit_2_bottom.data),
+                ('3_top', form.limit_3_top.data),
+                ('tote', form.limit_tote.data)
+            ]
+            
+            success_count = 0
+            for field, limit_value in updates:
+                if LimitService.set_default_group_limit(field, limit_value):
+                    success_count += 1
+            
+            if success_count == len(updates):
+                flash('อัพเดตขีดจำกัดทั้งหมดเรียบร้อยแล้ว', 'success')
+                return redirect(url_for('admin.group_limits'))
+            else:
+                flash(f'อัพเดตสำเร็จ {success_count}/{len(updates)} รายการ', 'warning')
+                
+        except Exception as e:
+            flash(f'เกิดข้อผิดพลาดในการอัพเดต: {str(e)}', 'error')
+    
+    return render_template('admin/edit_group_limits.html', 
+                          form=form,
+                          title='แก้ไขขีดจำกัดกลุ่มเลข')
+
+
+@admin_bp.route('/group_limits/api/dashboard_data')
+@login_required
+@admin_required
+def api_group_limits_dashboard():
+    """API endpoint for dashboard data (for AJAX updates)"""
+    try:
+        batch_id = request.args.get('batch_id')
+        dashboard_data = LimitService.get_limits_dashboard_data(batch_id)
+        return jsonify({
+            'success': True,
+            'data': {
+                field: {
+                    'field_name': data['field_name'],
+                    'limit_amount': float(data['limit_amount']),
+                    'used_amount': float(data['used_amount']),
+                    'remaining_amount': float(data['remaining_amount']),
+                    'usage_percent': data['usage_percent'],
+                    'order_count': data['order_count'],
+                    'number_count': data['number_count'],
+                    'status': data['status'],
+                    'is_exceeded': data['is_exceeded']
+                }
+                for field, data in dashboard_data.items()
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@admin_bp.route('/group_limits/api/validate_order', methods=['POST'])
+@login_required
+@admin_required
+def api_validate_order_limits():
+    """API endpoint to validate order against limits"""
+    try:
+        data = request.get_json()
+        order_items = data.get('order_items', [])
+        batch_id = data.get('batch_id')
+        
+        # Validate each order item
+        results = []
+        for item in order_items:
+            validation = LimitService.validate_order_item(
+                item['field'], 
+                item['number_norm'], 
+                item['buy_amount'], 
+                batch_id
+            )
+            results.append(validation)
+        
+        # Check if any invalid
+        is_valid = all(result['is_valid'] for result in results)
+        errors = [result['reason'] for result in results if not result['is_valid']]
+        
+        return jsonify({
+            'success': True,
+            'is_valid': is_valid,
+            'errors': errors,
+            'results': results
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@admin_bp.route('/api/update_group_limit', methods=['POST'])
+@login_required
+@admin_required
+def api_update_group_limit():
+    """API endpoint to update group limit"""
+    try:
+        data = request.get_json()
+        field = data.get('field')
+        new_limit = Decimal(str(data.get('limit')))
+        
+        success = LimitService.set_default_group_limit(field, new_limit)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': f'อัปเดตขีดจำกัดเริ่มต้นสำหรับ {field} เรียบร้อยแล้ว'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'ไม่สามารถอัปเดตขีดจำกัดได้'
+            })
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+
+@admin_bp.route('/individual_limits')
+@login_required
+@admin_required
+def individual_limits():
+    """Individual Number Limits Management page"""
+    try:
+        print("DEBUG: Starting individual_limits route")
+        
+        # Get default limits
+        print("DEBUG: Getting default limits...")
+        default_limits = LimitService.get_default_group_limits()
+        print(f"DEBUG: Default limits: {default_limits}")
+        
+        # Get individual limits list
+        print("DEBUG: Getting individual limits list...")
+        individual_limits = LimitService.get_individual_limits_list()
+        print(f"DEBUG: Individual limits count: {len(individual_limits)}")
+        
+        # Get current usage for each individual limit
+        print("DEBUG: Getting batch ID...")
+        batch_id = LimitService._get_current_batch_id()
+        print(f"DEBUG: Batch ID: {batch_id}")
+        
+        print("DEBUG: Processing individual limits...")
+        for i, limit in enumerate(individual_limits):
+            print(f"DEBUG: Processing limit {i+1}: {limit}")
+            try:
+                limit['current_usage'] = LimitService.get_current_usage(
+                    limit['field'], 
+                    limit['number_norm'], 
+                    batch_id
+                )
+                print(f"DEBUG: Current usage for {limit['field']}-{limit['number_norm']}: {limit['current_usage']}")
+            except Exception as usage_error:
+                print(f"DEBUG: Error getting usage for {limit}: {str(usage_error)}")
+                limit['current_usage'] = 0
+        
+        # Field display data
+        field_names = {
+            '2_top': '2 ตัวบน',
+            '2_bottom': '2 ตัวล่าง', 
+            '3_top': '3 ตัวบน',
+            'tote': 'โต๊ด'
+        }
+        
+        field_colors = {
+            '2_top': 'primary',
+            '2_bottom': 'success',
+            '3_top': 'warning',
+            'tote': 'info'
+        }
+        
+        print("DEBUG: Rendering template...")
+        return render_template('admin/individual_limits.html',
+                             default_limits=default_limits,
+                             individual_limits=individual_limits,
+                             field_names=field_names,
+                             field_colors=field_colors)
+                             
+    except Exception as e:
+        print(f"DEBUG: Exception in individual_limits route: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        flash(f'เกิดข้อผิดพลาด: {str(e)}', 'error')
+        return redirect(url_for('admin.dashboard'))
+
+
+@admin_bp.route('/api/set_individual_limit', methods=['POST'])
+@login_required
+@admin_required
+def api_set_individual_limit():
+    """API endpoint to set individual number limit"""
+    try:
+        # Debug: Log request details
+        print(f"DEBUG: Content-Type: {request.content_type}")
+        print(f"DEBUG: Request data: {request.get_data()}")
+        
+        data = request.get_json()
+        print(f"DEBUG: Parsed JSON data: {data}")
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'ไม่มีข้อมูลที่ส่งมา'
+            }), 400
+        
+        field = data.get('field')
+        number_norm = data.get('number_norm')
+        limit_amount = data.get('limit_amount')
+        
+        # Validate required fields
+        if not field or not number_norm or limit_amount is None:
+            return jsonify({
+                'success': False,
+                'error': 'ข้อมูลไม่ครบถ้วน (field, number_norm, limit_amount)'
+            }), 400
+        
+        try:
+            limit_amount = Decimal(str(limit_amount))
+        except (ValueError, TypeError) as e:
+            return jsonify({
+                'success': False,
+                'error': f'จำนวนเงินไม่ถูกต้อง: {str(e)}'
+            }), 400
+        
+        success = LimitService.set_individual_limit(field, number_norm, limit_amount)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': f'กำหนดขีดจำกัดสำหรับเลข {number_norm} เรียบร้อยแล้ว'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'ไม่สามารถกำหนดขีดจำกัดได้'
+            }), 500
+            
+    except Exception as e:
+        print(f"DEBUG: Exception occurred: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@admin_bp.route('/api/delete_individual_limit', methods=['POST'])
+@login_required
+@admin_required
+def api_delete_individual_limit():
+    """API endpoint to delete individual number limit"""
+    try:
+        # Debug: Log request details
+        print(f"DEBUG DELETE: Content-Type: {request.content_type}")
+        print(f"DEBUG DELETE: Request data: {request.get_data()}")
+        
+        data = request.get_json()
+        print(f"DEBUG DELETE: Parsed JSON data: {data}")
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'ไม่มีข้อมูลที่ส่งมา'
+            }), 400
+        
+        field = data.get('field')
+        number_norm = data.get('number_norm')
+        
+        # Validate required fields
+        if not field or not number_norm:
+            return jsonify({
+                'success': False,
+                'error': 'ข้อมูลไม่ครบถ้วน (field, number_norm)'
+            }), 400
+        
+        # Find and deactivate the rule
+        from app.models import Rule, db
+        rule = Rule.query.filter(
+            Rule.rule_type == 'number_limit',
+            Rule.field == field,
+            Rule.number_norm == number_norm
+        ).first()
+        
+        if rule:
+            rule.is_active = False
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': f'ลบขีดจำกัดสำหรับเลข {number_norm} เรียบร้อยแล้ว'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'ไม่พบขีดจำกัดที่ต้องการลบ'
+            })
+            
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })

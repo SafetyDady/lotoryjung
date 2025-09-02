@@ -1,0 +1,472 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Individual Number Limits Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-0">
+                        <i class="fas fa-list-ol me-2"></i>
+                        จัดการขีดจำกัดเลขแต่ละตัว
+                    </h2>
+                    <p class="text-muted mb-0">กำหนดขีดจำกัดเฉพาะเลขแต่ละตัว (Individual Number Limits)</p>
+                </div>
+                <div>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addLimitModal">
+                        <i class="fas fa-plus me-2"></i>เพิ่มขีดจำกัดใหม่
+                    </button>
+                    <a href="{{ url_for('admin.group_limits') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-layer-group me-2"></i>ขีดจำกัดกลุ่ม
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Default Limits Summary -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-info">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cog me-2"></i>ขีดจำกัดเริ่มต้น (Default Limits)
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for field, limit in default_limits.items() %}
+                        <div class="col-md-3 mb-2">
+                            <div class="d-flex justify-content-between">
+                                <span class="fw-bold">{{ field_names[field] }}:</span>
+                                <span class="text-primary">{{ "{:,.0f}".format(limit) }} บาท</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">กรองตามประเภท</label>
+                            <select class="form-select" id="fieldFilter">
+                                <option value="">ทุกประเภท</option>
+                                <option value="2_top">2 ตัวบน</option>
+                                <option value="2_bottom">2 ตัวล่าง</option>
+                                <option value="3_top">3 ตัวบน</option>
+                                <option value="tote">โต๊ด</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">ค้นหาเลข</label>
+                            <input type="text" class="form-control" id="numberSearch" placeholder="ค้นหาเลข...">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">กรองตามขีดจำกัด</label>
+                            <select class="form-select" id="limitFilter">
+                                <option value="">ทุกขีดจำกัด</option>
+                                <option value="custom">มีการกำหนดเฉพาะ</option>
+                                <option value="default">ใช้ค่าเริ่มต้น</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">&nbsp;</label>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-primary" id="applyFilters">
+                                    <i class="fas fa-filter me-1"></i>กรอง
+                                </button>
+                                <button class="btn btn-outline-secondary" id="clearFilters">
+                                    <i class="fas fa-times me-1"></i>ล้าง
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Individual Limits Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-table me-2"></i>รายการขีดจำกัดเลขแต่ละตัว
+                    </h5>
+                    <div>
+                        <span class="badge bg-info" id="totalCount">รวม: {{ individual_limits|length }} รายการ</span>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="limitsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th width="15%">ประเภท</th>
+                                    <th width="15%">เลข</th>
+                                    <th width="20%">ขีดจำกัด (บาท)</th>
+                                    <th width="20%">ยอดใช้ปัจจุบัน</th>
+                                    <th width="15%">สถานะ</th>
+                                    <th width="15%">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for limit in individual_limits %}
+                                <tr data-field="{{ limit.field }}" data-number="{{ limit.number_norm }}">
+                                    <td>
+                                        <span class="badge bg-{{ field_colors[limit.field] }}">
+                                            {{ field_names[limit.field] }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold fs-5">{{ limit.number_norm }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="fw-bold text-primary">
+                                                {{ "{:,.0f}".format(limit.limit) }}
+                                            </span>
+                                            {% if limit.limit != default_limits[limit.field] %}
+                                            <small class="text-muted">
+                                                (เริ่มต้น: {{ "{:,.0f}".format(default_limits[limit.field]) }})
+                                            </small>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="progress-container">
+                                            {% set usage = limit.get('current_usage', 0) %}
+                                            {% set percent = (usage / limit.limit * 100) if limit.limit > 0 else 0 %}
+                                            {% set display_percent = percent if percent <= 100 else 100 %}
+                                            <div class="progress mb-1" style="height: 8px;">
+                                                <div class="progress-bar 
+                                                    {% if percent >= 100 %}bg-danger
+                                                    {% elif percent >= 75 %}bg-warning
+                                                    {% elif percent >= 50 %}bg-info
+                                                    {% else %}bg-success{% endif %}"
+                                                    style="width: {{ display_percent }}%">
+                                                </div>
+                                            </div>
+                                            <small class="text-muted">
+                                                {{ "{:,.0f}".format(usage) }} / {{ "{:,.0f}".format(limit.limit) }}
+                                                ({{ "%.1f"|format(percent) }}%)
+                                            </small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if usage > limit.limit %}
+                                        <span class="badge bg-danger">เกินขีดจำกัด</span>
+                                        {% elif percent >= 75 %}
+                                        <span class="badge bg-warning">ใกล้เต็ม</span>
+                                        {% else %}
+                                        <span class="badge bg-success">ปกติ</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-primary" 
+                                                    onclick="editLimit('{{ limit.field }}', '{{ limit.number_norm }}', {{ limit.limit }})">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger"
+                                                    onclick="deleteLimit('{{ limit.field }}', '{{ limit.number_norm }}')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-center py-4">
+                                        <div class="text-muted">
+                                            <i class="fas fa-inbox fa-3x mb-3"></i>
+                                            <p class="mb-0">ยังไม่มีการกำหนดขีดจำกัดเฉพาะเลข</p>
+                                            <p class="small">คลิก "เพิ่มขีดจำกัดใหม่" เพื่อเริ่มต้น</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Limit Modal -->
+<div class="modal fade" id="addLimitModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus me-2"></i>เพิ่มขีดจำกัดใหม่
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addLimitForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">ประเภท</label>
+                        <select class="form-select" name="field" required>
+                            <option value="">เลือกประเภท</option>
+                            <option value="2_top">2 ตัวบน</option>
+                            <option value="2_bottom">2 ตัวล่าง</option>
+                            <option value="3_top">3 ตัวบน</option>
+                            <option value="tote">โต๊ด</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">เลข</label>
+                        <input type="text" class="form-control" name="number_norm" 
+                               placeholder="เช่น 00, 123, 1234" required>
+                        <div class="form-text">กรอกเลขตามประเภทที่เลือก</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">ขีดจำกัด (บาท)</label>
+                        <input type="number" class="form-control" name="limit_amount" 
+                               min="0" step="1" required>
+                        <div class="form-text">กำหนดขีดจำกัดสำหรับเลขนี้</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>บันทึก
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Limit Modal -->
+<div class="modal fade" id="editLimitModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit me-2"></i>แก้ไขขีดจำกัด
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editLimitForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">ประเภท</label>
+                        <input type="text" class="form-control" id="editField" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">เลข</label>
+                        <input type="text" class="form-control" id="editNumber" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">ขีดจำกัด (บาท)</label>
+                        <input type="number" class="form-control" id="editLimitAmount" 
+                               min="0" step="1" required>
+                    </div>
+                    <input type="hidden" id="editFieldValue">
+                    <input type="hidden" id="editNumberValue">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>บันทึกการแก้ไข
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Form handling
+document.getElementById('addLimitForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const data = {
+        field: formData.get('field'),
+        number_norm: formData.get('number_norm'),
+        limit_amount: parseFloat(formData.get('limit_amount'))
+    };
+    
+    fetch('{{ url_for("admin.api_set_individual_limit") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            window.location.reload();
+        } else {
+            alert('เกิดข้อผิดพลาด: ' + result.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    });
+});
+
+document.getElementById('editLimitForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const data = {
+        field: document.getElementById('editFieldValue').value,
+        number_norm: document.getElementById('editNumberValue').value,
+        limit_amount: parseFloat(document.getElementById('editLimitAmount').value)
+    };
+    
+    fetch('{{ url_for("admin.api_set_individual_limit") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            window.location.reload();
+        } else {
+            alert('เกิดข้อผิดพลาด: ' + result.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    });
+});
+
+// Edit limit function
+function editLimit(field, number, currentLimit) {
+    const fieldNames = {
+        '2_top': '2 ตัวบน',
+        '2_bottom': '2 ตัวล่าง',
+        '3_top': '3 ตัวบน',
+        'tote': 'โต๊ด'
+    };
+    
+    document.getElementById('editField').value = fieldNames[field];
+    document.getElementById('editNumber').value = number;
+    document.getElementById('editLimitAmount').value = currentLimit;
+    document.getElementById('editFieldValue').value = field;
+    document.getElementById('editNumberValue').value = number;
+    
+    new bootstrap.Modal(document.getElementById('editLimitModal')).show();
+}
+
+// Delete limit function
+function deleteLimit(field, number) {
+    if (confirm(`ต้องการลบขีดจำกัดของเลข ${number} ในประเภท ${field} หรือไม่?`)) {
+        fetch('{{ url_for("admin.api_delete_individual_limit") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                field: field,
+                number_norm: number
+            })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                window.location.reload();
+            } else {
+                alert('เกิดข้อผิดพลาด: ' + result.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+        });
+    }
+}
+
+// Filter functionality
+document.getElementById('applyFilters').addEventListener('click', function() {
+    const fieldFilter = document.getElementById('fieldFilter').value;
+    const numberSearch = document.getElementById('numberSearch').value.toLowerCase();
+    const limitFilter = document.getElementById('limitFilter').value;
+    
+    const rows = document.querySelectorAll('#limitsTable tbody tr');
+    let visibleCount = 0;
+    
+    rows.forEach(row => {
+        if (row.children.length === 1) return; // Skip empty message row
+        
+        const field = row.dataset.field;
+        const number = row.dataset.number;
+        
+        let show = true;
+        
+        // Field filter
+        if (fieldFilter && field !== fieldFilter) {
+            show = false;
+        }
+        
+        // Number search
+        if (numberSearch && !number.toLowerCase().includes(numberSearch)) {
+            show = false;
+        }
+        
+        row.style.display = show ? '' : 'none';
+        if (show) visibleCount++;
+    });
+    
+    document.getElementById('totalCount').textContent = `แสดง: ${visibleCount} รายการ`;
+});
+
+document.getElementById('clearFilters').addEventListener('click', function() {
+    document.getElementById('fieldFilter').value = '';
+    document.getElementById('numberSearch').value = '';
+    document.getElementById('limitFilter').value = '';
+    
+    const rows = document.querySelectorAll('#limitsTable tbody tr');
+    rows.forEach(row => {
+        row.style.display = '';
+    });
+    
+    document.getElementById('totalCount').textContent = `รวม: {{ individual_limits|length }} รายการ`;
+});
+</script>
+
+<style>
+.progress-container {
+    min-width: 120px;
+}
+
+.badge {
+    font-size: 0.75em;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.btn-group-sm > .btn {
+    padding: 0.25rem 0.5rem;
+}
+</style>
+{% endblock %}

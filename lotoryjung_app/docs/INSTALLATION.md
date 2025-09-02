@@ -4,16 +4,17 @@
 - Python 3.8 or higher
 - pip package manager
 - Git (for cloning repository)
+- SQLite3 (included with Python)
 
-## Installation Steps
+## Quick Installation
 
 ### 1. Clone Repository
 ```bash
 git clone https://github.com/SafetyDady/lotoryjung.git
-cd lotoryjung
+cd lotoryjung/lotoryjung_app
 ```
 
-### 2. Create Virtual Environment
+### 2. Create Virtual Environment (Recommended)
 ```bash
 python3 -m venv env
 source env/bin/activate  # Linux/Mac
@@ -23,31 +24,151 @@ env\Scripts\activate     # Windows
 
 ### 3. Install Dependencies
 ```bash
-cd lotoryjung_app
 pip install -r requirements.txt
 ```
 
-### 4. Environment Configuration
+### 4. Initialize Database
 ```bash
-# Copy environment template
-cp env.example .env
+# Create database structure
+python3 init_db.py
 
-# Edit configuration
-nano .env
+# Set up default limits
+python3 init_limits.py
 ```
 
-### 5. Database Setup
+### 5. Start Server
 ```bash
-# Initialize database
-python3 -c "from app import create_app, db; app = create_app(); app.app_context().push(); db.create_all()"
+python3 run_server.py
 ```
 
-### 6. Run Application
+Application will be available at: **http://127.0.0.1:8080**
+
+### 6. Default Login Credentials
+- **Admin**: admin / admin123
+- **Test User**: testuser / test123
+
+## Detailed Installation
+
+### Environment Configuration
+Create `.env` file in project root:
 ```bash
-python3 app.py
+# Application Configuration
+SECRET_KEY=your-secret-key-here
+FLASK_ENV=development
+FLASK_DEBUG=True
+
+# Database Configuration  
+SQLALCHEMY_DATABASE_URI=sqlite:///lotoryjung.db
+SQLALCHEMY_TRACK_MODIFICATIONS=False
+
+# Security Configuration
+WTF_CSRF_ENABLED=True
+WTF_CSRF_TIME_LIMIT=3600
+
+# Server Configuration
+HOST=127.0.0.1
+PORT=8080
+
+# Upload Configuration
+MAX_CONTENT_LENGTH=16777216
+UPLOAD_FOLDER=static/receipts
 ```
 
-Application จะรันที่: http://localhost:5002
+### Database Initialization Details
+
+#### Manual Database Setup
+```bash
+# Enter Python shell
+python3 -c "
+from app import create_app, db
+app = create_app()
+with app.app_context():
+    db.create_all()
+    print('Database created successfully')
+"
+```
+
+#### Initialize Default Data
+```bash
+# Create admin user and default limits
+python3 -c "
+from app import create_app, db
+from app.models import User, Rule
+from app.services.limit_service import LimitService
+from werkzeug.security import generate_password_hash
+from decimal import Decimal
+
+app = create_app()
+with app.app_context():
+    # Create admin user
+    admin = User(
+        username='admin',
+        email='admin@example.com',
+        password_hash=generate_password_hash('admin123'),
+        is_admin=True
+    )
+    db.session.add(admin)
+    
+    # Create default limits
+    limits = [
+        ('2_top', Decimal('700')),
+        ('2_bottom', Decimal('700')),
+        ('3_top', Decimal('300')),
+        ('tote', Decimal('700'))
+    ]
+    
+    for field, limit in limits:
+        LimitService.set_default_group_limit(field, limit)
+    
+    db.session.commit()
+    print('Default data created successfully')
+"
+```
+
+### Production Setup
+
+#### Environment Variables for Production
+```bash
+export FLASK_ENV=production
+export FLASK_DEBUG=False
+export SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex())')
+export SQLALCHEMY_DATABASE_URI=sqlite:///production.db
+```
+
+#### Using Production WSGI Server
+```bash
+# Install Gunicorn
+pip install gunicorn
+
+# Run with Gunicorn
+gunicorn --bind 0.0.0.0:8080 --workers 4 app:app
+```
+
+#### Docker Deployment
+```dockerfile
+# Dockerfile
+FROM python:3.9-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+COPY . .
+
+RUN python3 init_db.py
+RUN python3 init_limits.py
+
+EXPOSE 8080
+
+CMD ["python3", "run_server.py"]
+```
+
+```bash
+# Build and run Docker container
+docker build -t lotoryjung .
+docker run -p 8080:8080 lotoryjung
+```
 
 ## Development Setup
 

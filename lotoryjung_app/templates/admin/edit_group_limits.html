@@ -1,0 +1,259 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 class="mb-1">
+                        <i class="fas fa-edit me-2 text-primary"></i>{{ title }}
+                    </h2>
+                    <p class="text-muted mb-0">กำหนดขีดจำกัดเงินรางวัลสำหรับแต่ละกลุ่มเลข</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('admin.group_limits') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>กลับ
+                    </a>
+                </div>
+            </div>
+
+            <!-- Form Card -->
+            <div class="card border-0 shadow">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-cog me-2"></i>ตั้งค่าขีดจำกัด
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="row">
+                            <!-- 2 ตัวบน -->
+                            <div class="col-md-6 mb-4">
+                                <div class="card border-info">
+                                    <div class="card-header bg-info text-white">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-hashtag me-2"></i>2 ตัวบน
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        {{ form.limit_2_top.label(class="form-label fw-bold") }}
+                                        <div class="input-group">
+                                            {{ form.limit_2_top(class="form-control form-control-lg", step="0.01") }}
+                                            <span class="input-group-text">บาท</span>
+                                        </div>
+                                        {% if form.limit_2_top.errors %}
+                                            <div class="text-danger mt-1">
+                                                {% for error in form.limit_2_top.errors %}
+                                                    <small>{{ error }}</small>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <small class="text-muted">ขีดจำกัดเงินรางวัลสำหรับหวย 2 ตัวบน</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 2 ตัวล่าง -->
+                            <div class="col-md-6 mb-4">
+                                <div class="card border-success">
+                                    <div class="card-header bg-success text-white">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-hashtag me-2"></i>2 ตัวล่าง
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        {{ form.limit_2_bottom.label(class="form-label fw-bold") }}
+                                        <div class="input-group">
+                                            {{ form.limit_2_bottom(class="form-control form-control-lg", step="0.01") }}
+                                            <span class="input-group-text">บาท</span>
+                                        </div>
+                                        {% if form.limit_2_bottom.errors %}
+                                            <div class="text-danger mt-1">
+                                                {% for error in form.limit_2_bottom.errors %}
+                                                    <small>{{ error }}</small>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <small class="text-muted">ขีดจำกัดเงินรางวัลสำหรับหวย 2 ตัวล่าง</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 3 ตัวบน -->
+                            <div class="col-md-6 mb-4">
+                                <div class="card border-warning">
+                                    <div class="card-header bg-warning text-dark">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-dice me-2"></i>3 ตัวบน
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        {{ form.limit_3_top.label(class="form-label fw-bold") }}
+                                        <div class="input-group">
+                                            {{ form.limit_3_top(class="form-control form-control-lg", step="0.01") }}
+                                            <span class="input-group-text">บาท</span>
+                                        </div>
+                                        {% if form.limit_3_top.errors %}
+                                            <div class="text-danger mt-1">
+                                                {% for error in form.limit_3_top.errors %}
+                                                    <small>{{ error }}</small>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <small class="text-muted">ขีดจำกัดเงินรางวัลสำหรับหวย 3 ตัวบน</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- โต๊ด -->
+                            <div class="col-md-6 mb-4">
+                                <div class="card border-danger">
+                                    <div class="card-header bg-danger text-white">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-star me-2"></i>โต๊ด
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        {{ form.limit_tote.label(class="form-label fw-bold") }}
+                                        <div class="input-group">
+                                            {{ form.limit_tote(class="form-control form-control-lg", step="0.01") }}
+                                            <span class="input-group-text">บาท</span>
+                                        </div>
+                                        {% if form.limit_tote.errors %}
+                                            <div class="text-danger mt-1">
+                                                {% for error in form.limit_tote.errors %}
+                                                    <small>{{ error }}</small>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <small class="text-muted">ขีดจำกัดเงินรางวัลสำหรับโต๊ด</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Warning Alert -->
+                        <div class="alert alert-warning d-flex align-items-center" role="alert">
+                            <i class="fas fa-exclamation-triangle me-3"></i>
+                            <div>
+                                <strong>คำเตือน:</strong> การเปลี่ยนแปลงขีดจำกัดจะมีผลกับการทำออเดอร์ทั้งหมด 
+                                กรุณาตรวจสอบให้แน่ใจก่อนบันทึก
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{{ url_for('admin.group_limits') }}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-1"></i>ยกเลิก
+                            </a>
+                            <button type="button" class="btn btn-info" onclick="previewChanges()">
+                                <i class="fas fa-eye me-1"></i>ดูตัวอย่าง
+                            </button>
+                            <button type="submit" class="btn btn-primary" onclick="return confirmSave()">
+                                <i class="fas fa-save me-1"></i>บันทึกการตั้งค่า
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Help Section -->
+            <div class="card border-0 shadow mt-4">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-question-circle me-2"></i>วิธีการใช้งาน
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-primary">ขีดจำกัดคืออะไร?</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-success me-2"></i>จำนวนเงินรางวัลสูงสุดที่จ่ายได้ต่อกลุ่ม</li>
+                                <li><i class="fas fa-check text-success me-2"></i>ช่วยควบคุมความเสี่ยงทางการเงิน</li>
+                                <li><i class="fas fa-check text-success me-2"></i>ป้องกันการขาดทุนมากเกินไป</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-primary">คำแนะนำ</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-lightbulb text-warning me-2"></i>ตั้งค่าตามสภาพคล่องของธุรกิจ</li>
+                                <li><i class="fas fa-lightbulb text-warning me-2"></i>พิจารณาอัตราการออกรางวัลแต่ละประเภท</li>
+                                <li><i class="fas fa-lightbulb text-warning me-2"></i>ทบทวนและปรับปรุงเป็นประจำ</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function previewChanges() {
+    const limits = {
+        '2_top': document.getElementById('limit_2_top').value,
+        '2_bottom': document.getElementById('limit_2_bottom').value,
+        '3_top': document.getElementById('limit_3_top').value,
+        'tote': document.getElementById('limit_tote').value
+    };
+    
+    let preview = '🔍 ตัวอย่างการตั้งค่าใหม่:\n\n';
+    preview += `📊 2 ตัวบน: ${parseFloat(limits['2_top']).toLocaleString()} บาท\n`;
+    preview += `📊 2 ตัวล่าง: ${parseFloat(limits['2_bottom']).toLocaleString()} บาท\n`;
+    preview += `📊 3 ตัวบน: ${parseFloat(limits['3_top']).toLocaleString()} บาท\n`;
+    preview += `📊 โต๊ด: ${parseFloat(limits['tote']).toLocaleString()} บาท\n\n`;
+    
+    const total = Object.values(limits).reduce((sum, val) => sum + parseFloat(val), 0);
+    preview += `💰 รวมขีดจำกัดทั้งหมด: ${total.toLocaleString()} บาท`;
+    
+    alert(preview);
+}
+
+function confirmSave() {
+    const limits = {
+        '2_top': document.getElementById('limit_2_top').value,
+        '2_bottom': document.getElementById('limit_2_bottom').value,
+        '3_top': document.getElementById('limit_3_top').value,
+        'tote': document.getElementById('limit_tote').value
+    };
+    
+    let message = '💾 ยืนยันการบันทึกการตั้งค่าใหม่?\n\n';
+    message += `📊 2 ตัวบน: ${parseFloat(limits['2_top']).toLocaleString()} บาท\n`;
+    message += `📊 2 ตัวล่าง: ${parseFloat(limits['2_bottom']).toLocaleString()} บาท\n`;
+    message += `📊 3 ตัวบน: ${parseFloat(limits['3_top']).toLocaleString()} บาท\n`;
+    message += `📊 โต๊ด: ${parseFloat(limits['tote']).toLocaleString()} บาท\n\n`;
+    message += '⚠️ การเปลี่ยนแปลงจะมีผลทันที';
+    
+    return confirm(message);
+}
+
+// Format number inputs
+document.addEventListener('DOMContentLoaded', function() {
+    const numberInputs = document.querySelectorAll('input[type="number"]');
+    
+    numberInputs.forEach(input => {
+        input.addEventListener('input', function() {
+            // Remove any non-numeric characters except decimal point
+            this.value = this.value.replace(/[^0-9.]/g, '');
+        });
+        
+        input.addEventListener('blur', function() {
+            // Format the number when user leaves the field
+            if (this.value) {
+                const value = parseFloat(this.value);
+                if (!isNaN(value)) {
+                    this.value = value.toFixed(2);
+                }
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
