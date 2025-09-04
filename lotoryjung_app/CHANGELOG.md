@@ -5,6 +5,34 @@ All notable changes to the Lotoryjung project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2025-09-05
+
+### 🔧 Critical Template Fixes & Admin Enhancements
+#### Fixed
+- **Template Syntax Errors**: Resolved blocked_numbers template with endif/endblock mismatches
+- **JavaScript Errors**: Added jQuery to base template, fixed dashboard and admin page errors  
+- **Blocked Numbers Display**: Fixed page not showing 9 database records due to template issues
+- **Sales Report Calculation**: Fixed JavaScript syntax error preventing proper payout calculations
+- **Service Layer**: Added missing `get_default_group_limits()` method in limit_service.py
+
+#### Improved  
+- **Payout Logic**: Updated to show maximum payout per group only (as requested)
+- **Table Display**: Enhanced row numbering and data presentation in sales reports
+- **Debug Information**: Added comprehensive logging for troubleshooting template issues
+- **User Experience**: All admin pages now working without errors, proper success alerts
+
+#### Technical Changes
+- Complete rewrite of `blocked_numbers.html` template with clean structure
+- Enhanced error handling and debug info in admin routes  
+- Improved Bootstrap integration and responsive design
+- Backup created for corrupted templates before fixes
+
+#### Results
+- ✅ Dashboard displays correctly with success notifications
+- ✅ Blocked Numbers page shows all 9 records properly  
+- ✅ Sales Reports calculate and display accurate maximum payouts
+- ✅ All JavaScript errors resolved, full admin functionality restored
+
 ## [2.1.0] - 2025-09-04
 
 ### 🎯 Major Bug Fixes & System Improvements
