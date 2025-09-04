@@ -1,0 +1,369 @@
+{% extends "admin/base.html" %}
+
+{% block title %}รายงานยอดขายและยอดที่คาดว่าจะจ่าย{% endblock %}
+
+{% block header %}
+<style>
+    .sales-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    
+    .field-section {
+        margin-bottom: 30px;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .field-header {
+        background: linear-gradient(90deg, #007bff 0%, #0056b3 100%);
+        color: white;
+        padding: 15px;
+        font-size: 1.2em;
+        font-weight: bold;
+        text-align: center;
+    }
+    
+    .sales-table {
+        margin: 0;
+    }
+    
+    .sales-table th {
+        background-color: #f8f9fa;
+        font-weight: bold;
+        text-align: center;
+        border: 1px solid #dee2e6;
+    }
+    
+    .sales-table td {
+        text-align: center;
+        border: 1px solid #dee2e6;
+        vertical-align: middle;
+    }
+    
+    .number-cell {
+        font-weight: bold;
+        font-size: 1.1em;
+        background-color: #e3f2fd;
+    }
+    
+    .amount-cell {
+        font-family: 'Courier New', monospace;
+        font-weight: bold;
+    }
+    
+    .payout-cell {
+        font-family: 'Courier New', monospace;
+        font-weight: bold;
+        color: #dc3545;
+    }
+    
+    .summary-card {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+    }
+    
+    .summary-value {
+        font-size: 2em;
+        font-weight: bold;
+    }
+    
+    .loading-spinner {
+        display: none;
+        text-align: center;
+        padding: 40px;
+    }
+    
+    .rank-cell {
+        background-color: #fff3cd;
+        font-weight: bold;
+        color: #856404;
+    }
+    
+    .top-sales-section {
+        margin-bottom: 30px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Header -->
+            <div class="sales-header">
+                <h2><i class="fas fa-chart-line"></i> รายงานยอดขายและยอดที่คาดว่าจะจ่าย</h2>
+                <p class="mb-0">เรียงจากยอดขายสูงสุดไปต่ำสุด</p>
+            </div>
+            
+            <!-- Controls -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4><i class="fas fa-chart-line text-success"></i> รายงานยอดขายและยอดที่คาดว่าจะจ่าย</h4>
+                <div class="d-flex gap-2">
+                    <button id="refreshBtn" class="btn btn-primary">
+                        <i class="fas fa-sync-alt"></i> รีเฟรช
+                    </button>
+                </div>
+            </div>
+            <p class="text-muted">รายงานยอดขายรวมทั้งหมดในระบบ และการคำนวณยอดที่คาดว่าจะต้องจ่าย</p>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" class="loading-spinner">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+            <span class="visually-hidden">กำลังโหลด...</span>
+        </div>
+        <h5 class="mt-3">กำลังดึงข้อมูลรายงาน...</h5>
+    </div>
+
+    <!-- Report Content -->
+    <div id="reportContent" style="display: none;">
+        <!-- Summary Cards -->
+        <div class="row mb-4" id="summaryCards">
+            <!-- จะถูกเติมด้วย JavaScript -->
+        </div>
+
+        <!-- Top Sales All Types -->
+        <div class="top-sales-section">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-trophy"></i> Top 20 เลขที่มียอดขายสูงสุด (ทุกประเภท)</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table sales-table mb-0">
+                            <thead>
+                                <tr>
+                                    <th width="8%">อันดับ</th>
+                                    <th width="12%">เลข</th>
+                                    <th width="15%">ประเภท</th>
+                                    <th width="20%">ยอดขายรวม</th>
+                                    <th width="15%">อัตราจ่าย</th>
+                                    <th width="15%">Factor</th>
+                                    <th width="20%">ยอดคาดว่าจะจ่าย</th>
+                                </tr>
+                            </thead>
+                            <tbody id="topSalesTableBody">
+                                <tr>
+                                    <td colspan="7" class="text-center py-4">กำลังโหลดข้อมูล...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detailed Reports by Field -->
+        <div id="fieldReports">
+            <!-- จะถูกเติมด้วย JavaScript -->
+        </div>
+    </div>
+</div>
+
+<script>
+let salesData = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadSalesReport();
+    
+    // Event listeners
+    document.getElementById('refreshBtn').addEventListener('click', loadSalesReport);
+});
+
+function loadSalesReport() {
+    showLoading(true);
+    
+    // โหลดข้อมูลสรุปและ top sales พร้อมกัน (ไม่ใช้ batch)
+    Promise.all([
+        fetch(`/admin/api/sales-summary`),
+        fetch(`/admin/api/top-sales`)
+    ])
+    .then(responses => Promise.all(responses.map(r => r.json())))
+    .then(([summaryData, topSalesData]) => {
+        if (summaryData.success && topSalesData.success) {
+            displaySalesReport(summaryData.data, topSalesData.data);
+        } else {
+            const error = summaryData.error || topSalesData.error;
+            showError('เกิดข้อผิดพลาด: ' + error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+    })
+    .finally(() => {
+        showLoading(false);
+    });
+}
+
+function showLoading(show) {
+    document.getElementById('loadingSpinner').style.display = show ? 'block' : 'none';
+    document.getElementById('reportContent').style.display = show ? 'none' : 'block';
+}
+
+function displaySalesReport(summaryData, topSalesData) {
+    // Display summary cards
+    displaySummaryCards(summaryData);
+    
+    // Display top sales table
+    displayTopSalesTable(summaryData.all_numbers);
+    
+    // Display field reports
+    displayFieldReports(summaryData.field_summary, topSalesData);
+}
+
+function displaySummaryCards(summaryData) {
+    const container = document.getElementById('summaryCards');
+    
+    container.innerHTML = `
+        <div class="col-lg-3 col-md-6">
+            <div class="summary-card">
+                <h6>ยอดรวมทั้งหมด</h6>
+                <div class="summary-value">${formatNumber(summaryData.overview.grand_total)}</div>
+                <small>บาท</small>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="summary-card bg-danger">
+                <h6>ยอดคาดว่าจะจ่าย</h6>
+                <div class="summary-value">${formatNumber(summaryData.overview.total_estimated_payout)}</div>
+                <small>บาท</small>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="summary-card ${summaryData.overview.total_profit_loss >= 0 ? 'bg-success' : 'bg-danger'}">
+                <h6>${summaryData.overview.total_profit_loss >= 0 ? 'กำไร' : 'ขาดทุน'}</h6>
+                <div class="summary-value">${formatNumber(Math.abs(summaryData.overview.total_profit_loss))}</div>
+                <small>บาท</small>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="summary-card bg-info">
+                <h6>จำนวนเลข</h6>
+                <div class="summary-value">${summaryData.overview.total_numbers}</div>
+                <small>เลขทั้งหมด</small>
+            </div>
+        </div>
+    `;
+}
+
+function displayTopSalesTable(allNumbers) {
+    const tbody = document.getElementById('topSalesTableBody');
+    
+    if (!allNumbers || allNumbers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4">ไม่พบข้อมูล</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = allNumbers.slice(0, 20).map((item, index) => `
+        <tr>
+            <td class="rank-cell">${index + 1}</td>
+            <td class="number-cell">${item.number}</td>
+            <td><span class="badge bg-secondary">${getFieldLabel(item.field)}</span></td>
+            <td class="amount-cell">${formatNumber(item.total_sales)}</td>
+            <td>${formatNumber(item.payout_rate)}</td>
+            <td>${item.avg_factor}</td>
+            <td class="payout-cell">${formatNumber(item.estimated_payout)}</td>
+        </tr>
+    `).join('');
+}
+
+function displayFieldReports(fieldSummary, topSalesData) {
+    const container = document.getElementById('fieldReports');
+    
+    const fieldLabels = {
+        '2_top': '2ตัวบน',
+        '2_bottom': '2ตัวล่าง', 
+        '3_top': '3ตัวบน',
+        'tote': 'โต๊ด'
+    };
+    
+    container.innerHTML = Object.entries(fieldSummary).map(([field, summary]) => {
+        const fieldNumbers = topSalesData[field] || [];
+        
+        return `
+            <div class="field-section">
+                <div class="field-header">
+                    ${fieldLabels[field]} - ยอดรวม: ${formatNumber(summary.total_sales)} บาท 
+                    | คาดว่าจะจ่าย: ${formatNumber(summary.total_estimated_payout)} บาท
+                    | กำไร/ขาดทุน: ${formatNumber(summary.profit_loss)} บาท
+                </div>
+                <div class="table-responsive">
+                    <table class="table sales-table mb-0">
+                        <thead>
+                            <tr>
+                                <th width="8%">ลำดับ</th>
+                                <th width="15%">เลข</th>
+                                <th width="20%">ยอดขายรวม</th>
+                                <th width="12%">จำนวนซื้อ</th>
+                                <th width="13%">Factor</th>
+                                <th width="20%">ยอดคาดว่าจะจ่าย</th>
+                                <th width="12%">กำไร/ขาดทุน</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${fieldNumbers.map((item, index) => `
+                                <tr>
+                                    <td class="rank-cell">${index + 1}</td>
+                                    <td class="number-cell">${item.number}</td>
+                                    <td class="amount-cell">${formatNumber(item.total_sales)}</td>
+                                    <td>${item.order_count}</td>
+                                    <td>${item.avg_factor}</td>
+                                    <td class="payout-cell">${formatNumber(item.estimated_payout)}</td>
+                                    <td class="${item.profit_loss >= 0 ? 'text-success' : 'text-danger'}">${formatNumber(item.profit_loss)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                        <tfoot>
+                            <tr style="background-color: #f8f9fa; font-weight: bold;">
+                                <td colspan="2">รวม ${fieldLabels[field]}</td>
+                                <td class="amount-cell">${formatNumber(summary.total_sales)}</td>
+                                <td>-</td>
+                                <td>-</td>
+                                <td class="payout-cell">${formatNumber(summary.total_estimated_payout)}</td>
+                                <td class="${summary.profit_loss >= 0 ? 'text-success' : 'text-danger'}">${formatNumber(summary.profit_loss)}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function getFieldLabel(field) {
+    const labels = {
+        '2_top': '2ตัวบน',
+        '2_bottom': '2ตัวล่าง',
+        '3_top': '3ตัวบน', 
+        'tote': 'โต๊ด'
+    };
+    return labels[field] || field;
+}
+
+function formatNumber(num) {
+    return new Intl.NumberFormat('th-TH', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(num);
+}
+
+function showError(message) {
+    document.getElementById('reportContent').innerHTML = 
+        '<div class="alert alert-danger">' +
+        '<i class="fas fa-exclamation-triangle"></i> ' + message +
+        '</div>';
+    document.getElementById('reportContent').style.display = 'block';
+}
+</script>
+{% endblock %}

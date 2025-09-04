@@ -1,0 +1,338 @@
+{% extends "admin/base.html" %}
+
+{% block title %}รายงานยอดขาย{% endblock %}
+
+{% block content %}
+<style>
+    /* Table Styles - Inline CSS */
+    .report-table {
+        border-collapse: collapse !important;
+        margin: 20px 0 !important;
+        font-family: Arial, sans-serif !important;
+        font-size: 14px !important;
+        width: auto !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+    }
+    
+    .report-table th, .report-table td {
+        border: 2px solid #333 !important;
+        text-align: center !important;
+        padding: 8px 12px !important;
+        font-weight: bold !important;
+    }
+    
+    /* หัวตาราง - ลำดับ */
+    .rank-header {
+        background-color: #6f42c1 !important;
+        color: white !important;
+        width: 60px !important;
+        font-size: 14px !important;
+    }
+    
+    .rank-cell {
+        background-color: #6f42c1 !important;
+        color: white !important;
+        font-weight: bold !important;
+        width: 60px !important;
+    }
+    
+    /* หัวตาราง - ประเภทเลข */
+    .type-header {
+        background-color: #1e3d59 !important;
+        color: white !important;
+        font-size: 16px !important;
+        padding: 12px !important;
+    }
+    
+    /* หัวตาราง - คอลัมน์ย่อย */
+    .number-header {
+        background-color: #17a2b8 !important;
+        color: white !important;
+        font-size: 12px !important;
+        width: 60px !important;
+    }
+    
+    .sales-header {
+        background-color: #ffc107 !important;
+        color: #333 !important;
+        font-size: 12px !important;
+        width: 80px !important;
+    }
+    
+    .payout-header {
+        background-color: #fd7e14 !important;
+        color: white !important;
+        font-size: 12px !important;
+        width: 80px !important;
+    }
+    
+    /* เซลล์ข้อมูล */
+    .number-cell {
+        background-color: #17a2b8 !important;
+        color: white !important;
+        font-weight: bold !important;
+        font-size: 16px !important;
+    }
+    
+    .sales-cell {
+        background-color: #ffc107 !important;
+        color: #333 !important;
+        font-weight: bold !important;
+        text-align: right !important;
+    }
+    
+    .payout-cell {
+        background-color: #fd7e14 !important;
+        color: white !important;
+        font-weight: bold !important;
+        text-align: right !important;
+    }
+    
+    .empty-cell {
+        background-color: #f8f9fa !important;
+    }
+</style>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h3><i class="fas fa-chart-bar"></i> รายงานยอดขายและยอดที่คาดว่าจะจ่าย</h3>
+            <p class="text-muted">รายงานยอดขายรวมทั้งหมดในระบบ และการคำนวณยอดที่คาดว่าจะต้องจ่าย</p>
+            
+            <!-- Loading -->
+            <div id="loading" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">กำลังโหลด...</span>
+                </div>
+                <p class="mt-2">กำลังโหลดข้อมูล...</p>
+            </div>
+            
+            <!-- Summary Cards -->
+            <div id="summarySection" style="display: none;">
+                <div class="row mb-4">
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <div class="card border-primary">
+                            <div class="card-body text-center">
+                                <h5 class="card-title text-primary">
+                                    <i class="fas fa-coins"></i> ยอดขายรวมทั้งหมด
+                                </h5>
+                                <h2 class="text-primary" id="grandTotal">0</h2>
+                                <small class="text-muted">บาท</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <div class="card border-danger">
+                            <div class="card-body text-center">
+                                <h5 class="card-title text-danger">
+                                    <i class="fas fa-hand-holding-usd"></i> ยอดคาดว่าจะจ่าย
+                                </h5>
+                                <h2 class="text-danger" id="totalPayout">0</h2>
+                                <small class="text-muted">บาท</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <div class="card" id="profitCard">
+                            <div class="card-body text-center">
+                                <h5 class="card-title" id="profitTitle">
+                                    <i class="fas fa-chart-line"></i> กำไร/ขาดทุน
+                                </h5>
+                                <h2 id="profitLoss">0</h2>
+                                <small class="text-muted">บาท</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <div class="card border-info">
+                            <div class="card-body text-center">
+                                <h5 class="card-title text-info">
+                                    <i class="fas fa-list-ol"></i> จำนวนเลขทั้งหมด
+                                </h5>
+                                <h2 class="text-info" id="totalNumbers">0</h2>
+                                <small class="text-muted">เลข</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Report Table -->
+                        <!-- Report Table -->
+            <div id="reportContainer" style="display: none;">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th rowspan="2" class="rank-header">ลำดับ</th>
+                            <th colspan="3" class="type-header">2 ตัวบน</th>
+                            <th colspan="3" class="type-header">2 ตัวล่าง</th>
+                            <th colspan="3" class="type-header">3 ตัวบน</th>
+                            <th colspan="3" class="type-header">โต๊ด</th>
+                        </tr>
+                        <tr>
+                            <!-- 2 ตัวบน -->
+                            <th class="number-header">เลข</th>
+                            <th class="sales-header">ยอดขาย</th>
+                            <th class="payout-header">ยอดจ่าย</th>
+                            <!-- 2 ตัวล่าง -->
+                            <th class="number-header">เลข</th>
+                            <th class="sales-header">ยอดขาย</th>
+                            <th class="payout-header">ยอดจ่าย</th>
+                            <!-- 3 ตัวบน -->
+                            <th class="number-header">เลข</th>
+                            <th class="sales-header">ยอดขาย</th>
+                            <th class="payout-header">ยอดจ่าย</th>
+                            <!-- โต๊ด -->
+                            <th class="number-header">เลข</th>
+                            <th class="sales-header">ยอดขาย</th>
+                            <th class="payout-header">ยอดจ่าย</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportTableBody">
+                        <!-- ข้อมูลจะถูกใส่ที่นี่ -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Error Display -->
+            <div id="errorContainer" style="display: none;">
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span id="errorMessage">เกิดข้อผิดพลาด</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadSalesData();
+});
+
+function loadSalesData() {
+    // โหลดข้อมูลสรุปและ top sales พร้อมกัน
+    Promise.all([
+        fetch('/admin/api/sales-summary'),
+        fetch('/admin/api/top-sales')
+    ])
+    .then(responses => Promise.all(responses.map(r => r.json())))
+    .then(([summaryData, topSalesData]) => {
+        if (summaryData.success && topSalesData.success) {
+            displaySummary(summaryData.data);
+            displayTable(topSalesData.data);
+        } else {
+            const error = summaryData.error || topSalesData.error;
+            showError(error || 'ไม่พบข้อมูล');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+    });
+}
+
+function displaySummary(summaryData) {
+    const overview = summaryData.overview;
+    
+    document.getElementById('grandTotal').textContent = formatNumberWithComma(overview.grand_total);
+    document.getElementById('totalPayout').textContent = formatNumberWithComma(overview.total_estimated_payout);
+    document.getElementById('totalNumbers').textContent = overview.total_numbers;
+    
+    // แสดงกำไร/ขาดทุน
+    const profitLoss = overview.total_profit_loss;
+    const profitCard = document.getElementById('profitCard');
+    const profitTitle = document.getElementById('profitTitle');
+    const profitLossEl = document.getElementById('profitLoss');
+    
+    if (profitLoss >= 0) {
+        profitCard.className = 'card border-success';
+        profitTitle.className = 'card-title text-success';
+        profitTitle.innerHTML = '<i class="fas fa-arrow-up"></i> กำไร';
+        profitLossEl.className = 'text-success';
+    } else {
+        profitCard.className = 'card border-danger';
+        profitTitle.className = 'card-title text-danger';
+        profitTitle.innerHTML = '<i class="fas fa-arrow-down"></i> ขาดทุน';
+        profitLossEl.className = 'text-danger';
+    }
+    
+    profitLossEl.textContent = formatNumberWithComma(Math.abs(profitLoss));
+    
+    // แสดงส่วนสรุป
+    document.getElementById('summarySection').style.display = 'block';
+}
+
+function displayTable(data) {
+    const tbody = document.getElementById('reportTableBody');
+    
+    // หาความยาวสูงสุดของแต่ละประเภท
+    const maxRows = Math.max(
+        (data['2_top'] || []).length,
+        (data['2_bottom'] || []).length,
+        (data['3_top'] || []).length,
+        (data['tote'] || []).length,
+        20 // อย่างน้อย 20 แถว
+    );
+    
+    let tableHTML = '';
+    
+    for (let i = 0; i < maxRows; i++) {
+        const item_2_top = (data['2_top'] || [])[i];
+        const item_2_bottom = (data['2_bottom'] || [])[i];
+        const item_3_top = (data['3_top'] || [])[i];
+        const item_tote = (data['tote'] || [])[i];
+        
+        tableHTML += `
+            <tr>
+                <td class="rank-cell">${i + 1}</td>
+                <!-- 2 ตัวบน -->
+                <td class="${item_2_top ? 'number-cell' : 'empty-cell'}">${item_2_top ? item_2_top.number : ''}</td>
+                <td class="${item_2_top ? 'sales-cell' : 'empty-cell'}">${item_2_top ? formatNumber(item_2_top.total_sales) : ''}</td>
+                <td class="${item_2_top ? 'payout-cell' : 'empty-cell'}">${item_2_top ? formatNumber(item_2_top.estimated_payout) : ''}</td>
+                <!-- 2 ตัวล่าง -->
+                <td class="${item_2_bottom ? 'number-cell' : 'empty-cell'}">${item_2_bottom ? item_2_bottom.number : ''}</td>
+                <td class="${item_2_bottom ? 'sales-cell' : 'empty-cell'}">${item_2_bottom ? formatNumber(item_2_bottom.total_sales) : ''}</td>
+                <td class="${item_2_bottom ? 'payout-cell' : 'empty-cell'}">${item_2_bottom ? formatNumber(item_2_bottom.estimated_payout) : ''}</td>
+                <!-- 3 ตัวบน -->
+                <td class="${item_3_top ? 'number-cell' : 'empty-cell'}">${item_3_top ? item_3_top.number : ''}</td>
+                <td class="${item_3_top ? 'sales-cell' : 'empty-cell'}">${item_3_top ? formatNumber(item_3_top.total_sales) : ''}</td>
+                <td class="${item_3_top ? 'payout-cell' : 'empty-cell'}">${item_3_top ? formatNumber(item_3_top.estimated_payout) : ''}</td>
+                <!-- โต๊ด -->
+                <td class="${item_tote ? 'number-cell' : 'empty-cell'}">${item_tote ? item_tote.number : ''}</td>
+                <td class="${item_tote ? 'sales-cell' : 'empty-cell'}">${item_tote ? formatNumber(item_tote.total_sales) : ''}</td>
+                <td class="${item_tote ? 'payout-cell' : 'empty-cell'}">${item_tote ? formatNumber(item_tote.estimated_payout) : ''}</td>
+            </tr>
+        `;
+    }
+    
+    tbody.innerHTML = tableHTML;
+    
+    // แสดงตาราง
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('reportContainer').style.display = 'block';
+}
+
+function formatNumber(num) {
+    if (!num || num === 0) return '';
+    return new Intl.NumberFormat('th-TH', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(num);
+}
+
+function formatNumberWithComma(num) {
+    if (!num || num === 0) return '0';
+    return new Intl.NumberFormat('th-TH', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(num);
+}
+
+function showError(message) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('errorMessage').textContent = message;
+    document.getElementById('errorContainer').style.display = 'block';
+}
+</script>
+{% endblock %}

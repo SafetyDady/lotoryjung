@@ -5,6 +5,79 @@ All notable changes to the Lotoryjung project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2025-09-04
+
+### 🎯 Major Bug Fixes & System Improvements
+
+#### Critical Issues Resolved:
+1. **อัตราการจ่าย (Payout Rates) Fixed**
+   - ✅ Fixed hardcoded payout rates in SimpleSalesService
+   - ✅ Now uses database rates from Rule model via LimitService
+   - ✅ Correct rates: 2_top=70, 2_bottom=70, 3_top=500, tote=100
+
+2. **การบันทึกโต๊ด (Tote Normalization) Implemented**
+   - ✅ Fixed tote number grouping issue (123, 231, 312 → same group 123)
+   - ✅ Implemented `generate_tote_number()` for consistent canonicalization
+   - ✅ Updated API validation and submission to use normalization
+   - ✅ Enhanced SimpleSalesService to aggregate tote numbers properly
+
+3. **Database Constraint Handling**
+   - ✅ Fixed UNIQUE constraint violations on (order_id, field, number_norm)
+   - ✅ Proper tote normalization prevents duplicate entries
+   - ✅ Clean separation between tote and 3_top field handling
+
+### 📊 New Sales Reporting System
+
+#### SimpleSalesService
+- **Purpose**: Comprehensive sales analysis and reporting
+- **Features**:
+  - Sales summary by field type (2_top, 2_bottom, 3_top, tote)
+  - Top selling numbers identification
+  - Expected loss calculations using real database payout rates
+  - Proper tote number aggregation with normalization
+
+#### Enhanced API Endpoints
+- **validate_bulk_order**: Pre-validation with tote normalization support
+- **submit_bulk_order**: Order submission with proper number handling
+- **admin/simple-sales-report**: New admin interface for sales analysis
+
+#### Admin Interface Enhancements
+- New responsive sales report template
+- Improved table styling and data presentation
+- Real-time sales analysis dashboard
+
+### 🛠 Technical Implementation
+
+#### Core Files Modified:
+- `app/services/simple_sales_service.py` - Main sales reporting logic
+- `app/routes/api.py` - API endpoints with tote normalization
+- `app/routes/admin.py` - New admin routes for sales reports
+- `templates/admin/base.html` - Enhanced navigation
+
+#### New Files Added:
+- `templates/admin/simple_sales_report.html` - Sales report interface
+- `app/utils/number_utils.py` - Number normalization utilities
+
+### 🗄️ Database Schema Updates
+- **OrderItem.number_norm**: Normalized number field for proper grouping
+- **UNIQUE constraint**: Enhanced (order_id, field, number_norm) constraint
+- **Tote grouping logic**: Numbers with identical digits grouped together
+
+### ✅ Quality Assurance
+- **Tote Normalization Testing**: 231, 213 → 123 ✓
+- **Payout Rate Validation**: Database-driven rates (70, 70, 500, 100) ✓
+- **Sales Report Accuracy**: Proper aggregation and calculations ✓
+- **User Acceptance**: "มันใช้ได้ ยอดเยี่ยมมาก" ✓
+
+### 🚀 Performance Optimizations
+- Efficient database queries with proper indexing
+- Optimized tote number aggregation algorithms
+- Fast sales report generation with caching
+
+---
+**Status**: ✅ All critical issues resolved and production-ready
+**User Validation**: Confirmed working correctly
+
 ## [2.0.0] - 2025-09-02
 
 ### 🎉 Major Features Added

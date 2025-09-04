@@ -13,6 +13,11 @@ from app.utils.number_utils import (
     preview_bulk_blocked_numbers
 )
 from app.services.limit_service import LimitService
+from app.services.reports_service import ReportsService
+from app.services.risk_management_service import RiskManagementService
+from app.services.order_service import OrderService
+from app.services.simple_sales_service import SimpleSalesService
+from app.services.sales_report_service import SalesReportService
 from app import db
 
 admin_bp = Blueprint('admin', __name__)
@@ -421,14 +426,6 @@ def users():
     return render_template('admin/users.html')
 
 
-@admin_bp.route('/reports')
-@login_required
-@admin_required
-def reports():
-    """Reports and analytics"""
-    return render_template('admin/reports.html')
-
-
 # Group Limits Management
 @admin_bp.route('/group_limits')
 @login_required
@@ -779,3 +776,196 @@ def api_update_payout_rate():
     
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+
+# ============================================================================
+# REPORTS ROUTES - ระบบรายงานภาพรวม
+# ============================================================================
+
+@admin_bp.route('/reports')
+@login_required
+@admin_required
+def reports():
+    """หน้ารายงานภาพรวม"""
+    # ดึงรายการ batch ที่มีข้อมูล
+    available_batches = ReportsService.get_available_batches()
+    
+    # ใช้ batch ล่าสุดเป็นค่าเริ่มต้น
+    current_batch = available_batches[0]['batch_id'] if available_batches else None
+    
+    return render_template('admin/reports.html', 
+                         available_batches=available_batches,
+                         current_batch=current_batch)
+
+@admin_bp.route('/api/reports/summary')
+@login_required
+@admin_required
+def api_reports_summary():
+    """API: รายงานสรุปภาพรวม"""
+    batch_id = request.args.get('batch_id')
+    
+    if not batch_id:
+        return jsonify({'success': False, 'error': 'กรุณาระบุ batch_id'})
+    
+    # สร้างรายงานสรุป
+    result = ReportsService.get_batch_summary(batch_id)
+    
+    return jsonify(result)
+
+@admin_bp.route('/api/reports/number_detail')
+@login_required
+@admin_required
+def api_reports_number_detail():
+    """API: รายละเอียดเลขเฉพาะตัว"""
+    field = request.args.get('field')
+    number = request.args.get('number')
+    batch_id = request.args.get('batch_id')
+    
+    if not all([field, number, batch_id]):
+        return jsonify({'success': False, 'error': 'กรุณาระบุ field, number และ batch_id'})
+    
+    # วิเคราะห์เลขเฉพาะตัว
+    result = ReportsService.get_number_analysis(field, number, batch_id)
+    
+    return jsonify(result)
+
+@admin_bp.route('/api/reports/risk_analysis')
+@login_required
+@admin_required
+def api_reports_risk_analysis():
+    """API: วิเคราะห์ความเสี่ยง"""
+    batch_id = request.args.get('batch_id')
+    threshold = float(request.args.get('threshold', 0.1))  # 10% default
+    
+    if not batch_id:
+        return jsonify({'success': False, 'error': 'กรุณาระบุ batch_id'})
+    
+    # วิเคราะห์ความเสี่ยง
+    result = ReportsService.get_risk_analysis(batch_id, threshold)
+    
+    return jsonify(result)
+
+@admin_bp.route('/api/reports/charts')
+@login_required
+@admin_required
+def api_reports_charts():
+    """API: ข้อมูลสำหรับกราฟ"""
+    batch_id = request.args.get('batch_id')
+    chart_type = request.args.get('type', 'field_distribution')
+    
+    if not batch_id:
+        return jsonify({'success': False, 'error': 'กรุณาระบุ batch_id'})
+    
+    # สร้างข้อมูลกราฟ
+    result = ReportsService.get_chart_data(batch_id, chart_type)
+    
+    return jsonify(result)
+
+@admin_bp.route('/api/reports/batches')
+@login_required
+@admin_required
+def api_reports_batches():
+    """API: รายการ batch ที่มีข้อมูล"""
+    batches = ReportsService.get_available_batches()
+    
+    return jsonify({
+        'success': True,
+        'data': batches
+    })
+
+# Risk Management Routes
+@admin_bp.route('/risk-management')
+@login_required
+@admin_required
+def risk_management():
+    """หน้า Risk Management Dashboard"""
+    try:
+        current_batch_id = OrderService.get_current_batch_id()
+        if not current_batch_id:
+            flash('ไม่พบข้อมูล batch ปัจจุบัน', 'warning')
+            return redirect(url_for('admin.dashboard'))
+        
+        return render_template('admin/risk_management.html', 
+                             current_batch_id=current_batch_id)
+    except Exception as e:
+        flash(f'เกิดข้อผิดพลาด: {str(e)}', 'danger')
+        return redirect(url_for('admin.dashboard'))
+
+@admin_bp.route('/api/risk-dashboard')
+@login_required
+@admin_required
+def api_risk_dashboard():
+    """API สำหรับ Risk Dashboard"""
+    try:
+        batch_id = request.args.get('batch_id', OrderService.get_current_batch_id())
+        if not batch_id:
+            return jsonify({"success": False, "error": "ไม่พบ batch_id"}), 400
+            
+        risk_data = RiskManagementService.get_risk_dashboard(batch_id)
+        return jsonify(risk_data)
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@admin_bp.route('/api/risk-detail')
+@login_required
+@admin_required  
+def api_risk_detail():
+    """API สำหรับข้อมูลความเสี่ยงรายละเอียดของเลขเฉพาะ"""
+    try:
+        field = request.args.get('field')
+        number = request.args.get('number')
+        batch_id = request.args.get('batch_id', OrderService.get_current_batch_id())
+        
+        if not all([field, number, batch_id]):
+            return jsonify({"success": False, "error": "ข้อมูลไม่ครบถ้วน"}), 400
+            
+        risk_detail = RiskManagementService.get_number_risk_detail(field, number, batch_id)
+        return jsonify(risk_detail)
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# Simple Sales Report Routes (เหมือนตัวอย่าง)
+@admin_bp.route('/simple-sales-report')
+@login_required
+@admin_required
+def simple_sales_report():
+    """หน้ารายงานยอดขายแบบง่าย เหมือนตัวอย่าง"""
+    return render_template('admin/simple_sales_report.html')
+
+# Sales Report Routes  
+@admin_bp.route('/sales-report')
+@login_required
+@admin_required
+def sales_report():
+    """หน้ารายงานยอดขายและยอดที่คาดว่าจะจ่าย (ไม่แยก batch)"""
+    try:
+        return render_template('admin/sales_report.html')
+    except Exception as e:
+        flash(f'เกิดข้อผิดพลาด: {str(e)}', 'danger')
+        return redirect(url_for('admin.dashboard'))
+
+@admin_bp.route('/api/sales-summary')
+@login_required
+@admin_required
+def api_sales_summary():
+    """API สำหรับรายงานสรุปยอดขายและยอดที่คาดว่าจะจ่าย (ไม่แยก batch)"""
+    try:
+        sales_data = SimpleSalesService.get_all_sales_report()
+        return jsonify(sales_data)
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@admin_bp.route('/api/top-sales')
+@login_required
+@admin_required
+def api_top_sales():
+    """API สำหรับ Top Sales Numbers แยกตามประเภท (ไม่แยก batch)"""
+    try:
+        top_sales = SimpleSalesService.get_top_sales_by_field()
+        return jsonify(top_sales)
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500

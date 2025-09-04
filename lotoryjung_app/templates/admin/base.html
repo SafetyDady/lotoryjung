@@ -145,6 +145,44 @@
                         
                         <li class="nav-item">
                             <div class="nav-link text-muted small text-uppercase fw-bold">
+                                <i class="fas fa-chart-bar me-2"></i>รายงาน
+                            </div>
+                        </li>
+                        
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'admin.sales_report' %}active{% endif %}" 
+                               href="{{ url_for('admin.sales_report') }}">
+                                <i class="fas fa-chart-bar me-2"></i>
+                                รายงานยอดขาย
+                            </a>
+                        </li>
+                        
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'admin.reports' %}active{% endif %}" 
+                               href="{{ url_for('admin.reports') }}">
+                                <i class="fas fa-chart-pie me-2"></i>
+                                รายงานภาพรวม
+                            </a>
+                        </li>
+                        
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'admin.simple_sales_report' %}active{% endif %}" 
+                               href="{{ url_for('admin.simple_sales_report') }}">
+                                <i class="fas fa-table me-2"></i>
+                                รายงานยอดขาย
+                            </a>
+                        </li>
+                        
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'admin.risk_management' %}active{% endif %}" 
+                               href="{{ url_for('admin.risk_management') }}">
+                                <i class="fas fa-shield-alt me-2"></i>
+                                Risk Management
+                            </a>
+                        </li>
+                        
+                        <li class="nav-item">
+                            <div class="nav-link text-muted small text-uppercase fw-bold">
                                 <i class="fas fa-users me-2"></i>จัดการผู้ใช้
                             </div>
                         </li>

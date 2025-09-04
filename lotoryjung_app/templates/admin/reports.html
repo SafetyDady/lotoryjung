@@ -1,0 +1,547 @@
+{% extends "admin/base.html" %}
+
+{% block title %}รายงานภาพรวม{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    .metric-card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        border-left: 4px solid;
+        margin-bottom: 20px;
+    }
+    
+    .metric-card.field-2-top { border-left-color: #007bff; }
+    .metric-card.field-2-bottom { border-left-color: #28a745; }
+    .metric-card.field-3-top { border-left-color: #ffc107; }
+    .metric-card.field-tote { border-left-color: #dc3545; }
+    
+    .metric-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #333;
+    }
+    
+    .metric-label {
+        color: #666;
+        font-size: 0.9rem;
+        margin-top: 5px;
+    }
+    
+    .chart-container {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+    
+    .table-responsive {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .top-numbers-table {
+        margin: 0;
+    }
+    
+    .top-numbers-table th {
+        background-color: #f8f9fa;
+        border-top: none;
+        font-weight: 600;
+    }
+    
+    .badge-field {
+        font-size: 0.75rem;
+        padding: 0.35em 0.65em;
+    }
+    
+    .field-2-top-badge { background-color: #007bff; }
+    .field-2-bottom-badge { background-color: #28a745; }
+    .field-3-top-badge { background-color: #ffc107; color: #212529; }
+    .field-tote-badge { background-color: #dc3545; }
+    
+    .risk-indicator {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 5px;
+    }
+    
+    .risk-low { background-color: #28a745; }
+    .risk-medium { background-color: #ffc107; }
+    .risk-high { background-color: #dc3545; }
+    
+    .loading-spinner {
+        text-align: center;
+        padding: 40px;
+    }
+    
+    .spinner-border {
+        width: 3rem;
+        height: 3rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="report-card">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h2 class="mb-1">
+                    <i class="fas fa-chart-bar me-2"></i>รายงานภาพรวมการซื้อสลาก
+                </h2>
+                <p class="mb-0">ข้อมูลสรุปและวิเคราะห์การซื้อสลากแยกตามประเภทและเลข</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <div class="row">
+                    <div class="col-12 mb-2">
+                        <select id="batchSelect" class="form-select" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white;">
+                            <option value="">เลือก Batch...</option>
+                            {% for batch in available_batches %}
+                            <option value="{{ batch.batch_id }}" 
+                                    {% if batch.batch_id == current_batch %}selected{% endif %}
+                                    style="color: #333;">
+                                {{ batch.batch_id }} - {{ batch.lottery_period }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <button id="refreshBtn" class="btn btn-light" onclick="loadReports()">
+                            <i class="fas fa-sync-alt me-1"></i>รีเฟรช
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loadingIndicator" class="loading-spinner" style="display: none;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">กำลังโหลด...</span>
+        </div>
+        <p class="mt-3 text-muted">กำลังโหลดข้อมูลรายงาน...</p>
+    </div>
+
+    <!-- Overview Metrics -->
+    <div id="overviewSection" style="display: none;">
+        <div class="row" id="overviewMetrics">
+            <!-- จะถูกเติมด้วย JavaScript -->
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div id="chartsSection" style="display: none;">
+        <div class="row">
+            <div class="col-lg-6 mb-4">
+                <div class="chart-container">
+                    <h5 class="mb-3">
+                        <i class="fas fa-pie-chart me-2"></i>การกระจายตามประเภทสลาก
+                    </h5>
+                    <canvas id="fieldDistributionChart" height="300"></canvas>
+                </div>
+            </div>
+            <div class="col-lg-6 mb-4">
+                <div class="chart-container">
+                    <h5 class="mb-3">
+                        <i class="fas fa-chart-bar me-2"></i>Top 10 เลขยอดสูงสุด
+                    </h5>
+                    <canvas id="topNumbersChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-lg-12 mb-4">
+                <div class="chart-container">
+                    <h5 class="mb-3">
+                        <i class="fas fa-chart-doughnut me-2"></i>การวิเคราะห์ Validation Factor
+                    </h5>
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <canvas id="factorAnalysisChart" height="200"></canvas>
+                        </div>
+                        <div class="col-lg-6">
+                            <div id="factorLegend" class="mt-3">
+                                <!-- จะถูกเติมด้วย JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Numbers Table -->
+    <div id="tableSection" style="display: none;">
+        <div class="row">
+            <div class="col-12">
+                <div class="table-responsive">
+                    <table class="table top-numbers-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>เลข</th>
+                                <th>ประเภท</th>
+                                <th class="text-end">ยอดรวม (บาท)</th>
+                                <th class="text-center">จำนวนคำสั่งซื้อ</th>
+                                <th class="text-center">ผู้ซื้อ</th>
+                                <th class="text-center">Factor เฉลี่ย</th>
+                                <th class="text-center">ดูรายละเอียด</th>
+                            </tr>
+                        </thead>
+                        <tbody id="topNumbersTableBody">
+                            <!-- จะถูกเติมด้วย JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Number Detail Modal -->
+    <div class="modal fade" id="numberDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">รายละเอียดเลข <span id="modalNumberTitle"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="numberDetailContent">
+                    <!-- จะถูกเติมด้วย JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let currentBatch = '{{ current_batch }}';
+let charts = {};
+
+// รอให้หน้าโหลดเสร็จ
+document.addEventListener('DOMContentLoaded', function() {
+    if (currentBatch) {
+        loadReports();
+    }
+    
+    // Event listener สำหรับเปลี่ยน batch
+    document.getElementById('batchSelect').addEventListener('change', function() {
+        currentBatch = this.value;
+        if (currentBatch) {
+            loadReports();
+        }
+    });
+});
+
+async function loadReports() {
+    if (!currentBatch) {
+        alert('กรุณาเลือก batch');
+        return;
+    }
+    
+    showLoading(true);
+    
+    try {
+        // โหลดข้อมูลสรุป
+        const summaryResponse = await fetch(`/admin/api/reports/summary?batch_id=${currentBatch}`);
+        const summaryData = await summaryResponse.json();
+        
+        if (summaryData.success) {
+            renderOverview(summaryData.data);
+            renderTopNumbersTable(summaryData.data.top_numbers);
+            
+            // โหลดกราฟ
+            await loadCharts();
+            
+            showSections(true);
+        } else {
+            alert('เกิดข้อผิดพลาด: ' + summaryData.error);
+        }
+    } catch (error) {
+        console.error('Error loading reports:', error);
+        alert('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function loadCharts() {
+    try {
+        // กราฟการกระจายตามประเภทสลาก
+        const fieldResponse = await fetch(`/admin/api/reports/charts?batch_id=${currentBatch}&type=field_distribution`);
+        const fieldData = await fieldResponse.json();
+        if (fieldData.success) {
+            renderChart('fieldDistributionChart', fieldData.chart_data, 'pie');
+        }
+        
+        // กราฟ Top Numbers
+        const topResponse = await fetch(`/admin/api/reports/charts?batch_id=${currentBatch}&type=top_numbers`);
+        const topData = await topResponse.json();
+        if (topData.success) {
+            renderChart('topNumbersChart', topData.chart_data, 'bar');
+        }
+        
+        // กราฟ Factor Analysis
+        const factorResponse = await fetch(`/admin/api/reports/charts?batch_id=${currentBatch}&type=factor_analysis`);
+        const factorData = await factorResponse.json();
+        if (factorData.success) {
+            renderChart('factorAnalysisChart', factorData.chart_data, 'doughnut');
+        }
+        
+    } catch (error) {
+        console.error('Error loading charts:', error);
+    }
+}
+
+function renderOverview(data) {
+    const metricsHtml = `
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="metric-card field-2-top">
+                <div class="metric-value">${formatNumber(data.summary_by_field['2_top']?.total_amount || 0)}</div>
+                <div class="metric-label">2 ตัวบน (${data.summary_by_field['2_top']?.total_items || 0} รายการ)</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="metric-card field-2-bottom">
+                <div class="metric-value">${formatNumber(data.summary_by_field['2_bottom']?.total_amount || 0)}</div>
+                <div class="metric-label">2 ตัวล่าง (${data.summary_by_field['2_bottom']?.total_items || 0} รายการ)</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="metric-card field-3-top">
+                <div class="metric-value">${formatNumber(data.summary_by_field['3_top']?.total_amount || 0)}</div>
+                <div class="metric-label">3 ตัวบน (${data.summary_by_field['3_top']?.total_items || 0} รายการ)</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="metric-card field-tote">
+                <div class="metric-value">${formatNumber(data.summary_by_field['tote']?.total_amount || 0)}</div>
+                <div class="metric-label">โต๊ด (${data.summary_by_field['tote']?.total_items || 0} รายการ)</div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('overviewMetrics').innerHTML = metricsHtml;
+}
+
+function renderTopNumbersTable(topNumbers) {
+    const fieldNames = {
+        '2_top': '2 ตัวบน',
+        '2_bottom': '2 ตัวล่าง', 
+        '3_top': '3 ตัวบน',
+        'tote': 'โต๊ด'
+    };
+    
+    const fieldClasses = {
+        '2_top': 'field-2-top-badge',
+        '2_bottom': 'field-2-bottom-badge',
+        '3_top': 'field-3-top-badge',
+        'tote': 'field-tote-badge'
+    };
+    
+    let html = '';
+    topNumbers.forEach((item, index) => {
+        html += `
+            <tr>
+                <td>${index + 1}</td>
+                <td><strong>${item.number}</strong></td>
+                <td><span class="badge ${fieldClasses[item.field]} badge-field">${fieldNames[item.field]}</span></td>
+                <td class="text-end"><strong>${formatNumber(item.total_amount)}</strong></td>
+                <td class="text-center">${item.order_count}</td>
+                <td class="text-center">${item.buyer_count}</td>
+                <td class="text-center">${item.avg_factor}</td>
+                <td class="text-center">
+                    <button class="btn btn-sm btn-outline-primary" onclick="showNumberDetail('${item.field}', '${item.number}')">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    document.getElementById('topNumbersTableBody').innerHTML = html;
+}
+
+function renderChart(canvasId, chartData, type) {
+    // ลบกราฟเก่าถ้ามี
+    if (charts[canvasId]) {
+        charts[canvasId].destroy();
+    }
+    
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    
+    const config = {
+        type: type,
+        data: chartData,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: type === 'bar' ? 'top' : 'bottom'
+                }
+            }
+        }
+    };
+    
+    if (type === 'bar') {
+        config.options.scales = {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    callback: function(value) {
+                        return formatNumber(value);
+                    }
+                }
+            }
+        };
+    }
+    
+    charts[canvasId] = new Chart(ctx, config);
+}
+
+async function showNumberDetail(field, number) {
+    try {
+        const response = await fetch(`/admin/api/reports/number_detail?field=${field}&number=${number}&batch_id=${currentBatch}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const fieldNames = {
+                '2_top': '2 ตัวบน',
+                '2_bottom': '2 ตัวล่าง', 
+                '3_top': '3 ตัวบน',
+                'tote': 'โต๊ด'
+            };
+            
+            document.getElementById('modalNumberTitle').textContent = `${number} (${fieldNames[field]})`;
+            
+            let html = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>สรุปภาพรวม</h6>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>ยอดรวม:</span>
+                                <strong>${formatNumber(data.data.summary.total_amount)} บาท</strong>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>จำนวนคำสั่งซื้อ:</span>
+                                <strong>${data.data.summary.total_orders}</strong>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>ผู้ซื้อ:</span>
+                                <strong>${data.data.summary.unique_users} คน</strong>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>Factor เฉลี่ย:</span>
+                                <strong>${data.data.summary.avg_factor}</strong>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>การกระจายตัวของ Factor</h6>
+                        <div class="mb-3">
+            `;
+            
+            data.data.factor_breakdown.forEach(factor => {
+                const percentage = (factor.amount / data.data.summary.total_amount * 100).toFixed(1);
+                html += `
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>${factor.validation_reason} (${factor.validation_factor}x):</span>
+                        <div>
+                            <span class="badge bg-primary">${formatNumber(factor.amount)} บาท</span>
+                            <small class="text-muted">(${percentage}%)</small>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <h6>Top 10 ผู้ซื้อ</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>ผู้ใช้</th>
+                                <th class="text-end">ยอดซื้อ</th>
+                                <th class="text-center">คำสั่งซื้อ</th>
+                                <th class="text-center">Factor เฉลี่ย</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            data.data.top_users.forEach(user => {
+                html += `
+                    <tr>
+                        <td>${user.name} (${user.username})</td>
+                        <td class="text-end">${formatNumber(user.total_amount)}</td>
+                        <td class="text-center">${user.order_count}</td>
+                        <td class="text-center">${user.avg_factor}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            document.getElementById('numberDetailContent').innerHTML = html;
+            
+            // แสดง modal
+            const modal = new bootstrap.Modal(document.getElementById('numberDetailModal'));
+            modal.show();
+        } else {
+            alert('เกิดข้อผิดพลาด: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error loading number detail:', error);
+        alert('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+    }
+}
+
+function formatNumber(num) {
+    return new Intl.NumberFormat('th-TH').format(num);
+}
+
+function showLoading(show) {
+    document.getElementById('loadingIndicator').style.display = show ? 'block' : 'none';
+}
+
+function showSections(show) {
+    document.getElementById('overviewSection').style.display = show ? 'block' : 'none';
+    document.getElementById('chartsSection').style.display = show ? 'block' : 'none';
+    document.getElementById('tableSection').style.display = show ? 'block' : 'none';
+}
+</script>
+{% endblock %}

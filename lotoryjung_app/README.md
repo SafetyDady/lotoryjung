@@ -1,4 +1,23 @@
-# 🎰 Lotoryjung - Advanced Lotte### 🛒 Bulk Order Form System (COMPLETED) ⭐
+# 🎰 Lotoryjung - Advanced Lottery Management System
+
+เป็นระบบจัดการลอตเตอรี่ที่ครบครันด้วย Flask framework พร้อมระบบจัดการขีดจำกัดขั้นสูง, การจัดการเลขอั้น, และระบบรายงานยอดขายที่แม่นยำ
+
+## 🚀 Features Overview
+
+### 🎯 Core Functionality
+- **User Authentication System** - ระบบลงทะเบียนและเข้าสู่ระบบ
+- **Order Management** - จัดการคำสั่งซื้อลอตเตอรี่
+- **Admin Dashboard** - แดชบอร์ดสำหรับผู้ดูแลระบบ
+- **Audit Logging** - บันทึกการเปลี่ยนแปลงระบบ
+
+### 📊 Sales Reporting System (NEW) ⭐
+- **Accurate Payout Calculation** - คำนวณอัตราการจ่ายจากฐานข้อมูลจริง
+- **Tote Number Normalization** - จัดกลุ่มโต๊ดที่มีหลักเดียวกัน (123, 231, 312)
+- **Expected Loss Analysis** - วิเคราะห์ยอดคาดว่าจะเสียในแต่ละเลข
+- **Field-based Grouping** - แยกรายงานตามประเภทหวย
+- **SimpleSalesService API** - ระบบ API ที่ใช้งานง่าย
+
+### 🛒 Bulk Order Form System (COMPLETED) ⭐
 - **Multi-row Orders** - สั่งซื้อหลายรายการพร้อมกัน (สูงสุด 20 บรรทัด)
 - **2-Step Validation** - ตรวจสอบรายบรรทัด และ ตรวจสอบทั้งหมด
 - **Field Restrictions** - 
@@ -9,26 +28,13 @@
 - **External Calculation Architecture** - รองรับการคำนวณจากระบบภายนอก
 - **Complete Database Integration** - บันทึกข้อมูลครบถ้วนในฐานข้อมูล
 
-### 💾 Database-Driven Payout System (COMPLETED) - ✅ **External Calculation Support (COMPLETED) ⭐
-- ✅ **Message Text Updates ("มียอดซื้อเกินโควต้า") ⭐
-- ✅ **Legacy Database Compatibility (COMPLETED) ⭐
-- ✅ **Complete Order Submission & Tracking (COMPLETED) ⭐
-- ✅ **Admin Payout Rate Management (NEW) ⭐**Dynamic Payout Rates** - ดึงอัตราการจ่ายจากฐานข้อมูล
+### 💾 Database-Driven Payout System (COMPLETED) ⭐
+- **Dynamic Payout Rates** - ดึงอัตราการจ่ายจากฐานข้อมูล
 - **External Calculation Support** - รองรับการคำนวณจากระบบภายนอก
 - **Validation Factors** - บันทึกปัจจัยการตรวจสอบ (1.0x หรือ 0.5x)
 - **Message Text Updates** - ข้อความเตือน "มียอดซื้อเกินโควต้า"
 - **Legacy Database Compatibility** - รองรับทั้ง schema เก่าและใหม่
-- **Complete Field Mapping** - แมปข้อมูลระหว่าง validation และ database fieldsSystem
-
-เป็นระบบจัดการลอตเตอรี่ที่ครบครันด้วย Flask framework พร้อมระบบจัดการขีดจำกัดขั้นสูงและการจัดการเลขอั้น
-
-## 🚀 Features Overview
-
-### 🎯 Core Functionality
-- **User Authentication System** - ระบบลงทะเบียนและเข้าสู่ระบบ
-- **Order Management** - จัดการคำสั่งซื้อลอตเตอรี่
-- **Admin Dashboard** - แดชบอร์ดสำหรับผู้ดูแลระบบ
-- **Audit Logging** - บันทึกการเปลี่ยนแปลงระบบ
+- **Complete Field Mapping** - แมปข้อมูลระหว่าง validation และ database fields
 
 ### 🔒 Blocked Numbers Management
 - **Bulk Operations** - เพิ่มเลขอั้นหลายตัวพร้อมกัน
@@ -292,6 +298,49 @@ python app.py
 
 ### 💰 Payout Rate Management (NEW) ⭐
 - **URL**: `/admin/payout_rates`
+- Configure payout rates for all number types
+- Database-driven rate system
+- Support for external calculation integration
+
+### 📈 Sales Reporting System (NEW) ⭐
+- **URL**: `/admin/simple-sales-report`
+- Real-time sales analysis by number type
+- Accurate payout calculations from database
+- Tote number normalization and grouping
+- Expected loss analysis per number
+- Interactive dashboard with filtering
+
+## 📚 Documentation
+
+### Core System Documentation
+- **[CHANGELOG.md](./CHANGELOG.md)** - Complete version history and updates
+- **[SIMPLE_SALES_SYSTEM.md](./docs/SIMPLE_SALES_SYSTEM.md)** - Sales reporting system overview
+- **[SIMPLE_SALES_SERVICE.md](./docs/SIMPLE_SALES_SERVICE.md)** - SimpleSalesService API documentation
+- **[TOTE_NORMALIZATION.md](./docs/TOTE_NORMALIZATION.md)** - Tote number grouping system explained
+
+### Feature-Specific Documentation  
+- **[REPORTS_DESIGN.md](./docs/REPORTS_DESIGN.md)** - Reporting system architecture
+- **[RISK_MANAGEMENT_DESIGN.md](./docs/RISK_MANAGEMENT_DESIGN.md)** - Risk management system
+
+### Recent Major Updates (v2.1.0)
+- ✅ **Fixed Payout Rate Calculation** - Now uses database rates instead of hardcoded values
+- ✅ **Implemented Tote Normalization** - Numbers 123, 231, 312 now properly grouped as same number
+- ✅ **Enhanced Sales Reporting** - Accurate aggregation and loss calculations
+- ✅ **Database Schema Updates** - Added number_norm field for proper grouping
+- ✅ **API Improvements** - Updated validation and submission with normalization
+
+## 🎯 Key Features Highlights
+
+### Recently Resolved Issues
+1. **การบันทึกแลข โต๊ด ผิดพลาด** ✅ - Fixed tote number recording with proper normalization
+2. **อัตรการจ่าย น่าจะ ผิดพลาดด้วย** ✅ - Fixed payout rate calculation to use database values
+3. **เลข 312, 231 เป็นตัวเลขเดียวกัน คือ 123** ✅ - Implemented proper tote grouping
+
+### Production-Ready Features
+- **SimpleSalesService** - Comprehensive sales analysis API
+- **Tote Normalization Engine** - Automatic number grouping (123 ← 231, 312)
+- **Database-Driven Rates** - Payout rates: 2_top=70, 2_bottom=70, 3_top=500, tote=100
+- **UNIQUE Constraint Protection** - Prevents duplicate normalized entries
 - **Real-time Rate Updates** - แก้ไขอัตราการจ่ายแบบเรียลไทม์
 - **Visual Rate Cards** - แสดงอัตราการจ่ายแต่ละประเภทด้วย cards สีสวย
 - **In-place Editing** - แก้ไขได้ทันทีโดยไม่ต้องเปลี่ยนหน้า

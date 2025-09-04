@@ -179,10 +179,17 @@ def validate_bulk_order():
             
             # Validate each field
             for field, amount in fields_to_check:
+                # ⭐ แก้ไข: สำหรับโต๊ด ต้องใช้ normalized number ในการตรวจสอบ limits
+                lookup_number = clean_number
+                if field == 'tote' and len(clean_number) == 3:
+                    # สำหรับโต๊ด: เรียงหลักจากเล็กไปใหญ่ (123, 231, 312 → 123)
+                    from app.utils.number_utils import generate_tote_number
+                    lookup_number = generate_tote_number(clean_number)
+                
                 # Get current usage and limits
-                current_usage = LimitService.get_current_usage(field, clean_number, batch_id)
-                limit = LimitService.get_individual_limit(field, clean_number)
-                is_blocked = LimitService.is_blocked_number(field, clean_number)
+                current_usage = LimitService.get_current_usage(field, lookup_number, batch_id)
+                limit = LimitService.get_individual_limit(field, lookup_number)
+                is_blocked = LimitService.is_blocked_number(field, lookup_number)
                 
                 # Calculate new total after this purchase
                 new_total = current_usage + amount
@@ -329,7 +336,14 @@ def validate_single_item():
         # Validate and calculate for each field
         results = []
         for field, amount in fields_to_check:
-            validation = LimitService.validate_order_item(field, clean_number, amount, batch_id)
+            # ⭐ แก้ไข: สำหรับโต๊ด ต้องใช้ normalized number ในการตรวจสอบ limits
+            lookup_number = clean_number
+            if field == 'tote' and len(clean_number) == 3:
+                # สำหรับโต๊ด: เรียงหลักจากเล็กไปใหญ่ (123, 231, 312 → 123)
+                from app.utils.number_utils import generate_tote_number
+                lookup_number = generate_tote_number(clean_number)
+            
+            validation = LimitService.validate_order_item(field, lookup_number, amount, batch_id)
             
             # Add display information
             validation['field_display'] = LimitService._get_field_display_name(field)
@@ -455,7 +469,8 @@ def submit_bulk_order():
         db.session.flush()  # Get order ID
         
         # Create order items with validation factors
-        order_items = []
+        # ⭐ แก้ปัญหา UNIQUE constraint: รวมยอด tote ที่ normalize เหมือนกันก่อน
+        consolidated_items = {}  # Key: (field, number_norm), Value: item_data
         
         for result in validation_results:
             if result['status'] == 'error':
@@ -464,30 +479,70 @@ def submit_bulk_order():
             clean_number = ''.join(filter(str.isdigit, result['number']))
             
             for detail in result['details']:
+                # ⭐ แก้ไข: สำหรับโต๊ด ต้องใช้ tote normalization (เรียงหลักจากเล็กไปใหญ่)
+                normalized_number = clean_number
+                if detail['field'] == 'tote' and len(clean_number) == 3:
+                    # สำหรับโต๊ด: เรียงหลักจากเล็กไปใหญ่ (123, 231, 312 → 123)
+                    from app.utils.number_utils import generate_tote_number
+                    normalized_number = generate_tote_number(clean_number)
+                
+                # สร้าง key สำหรับ consolidation
+                key = (detail['field'], normalized_number)
+                
                 # Calculate actual payout for this item
                 base_payout = Decimal(str(detail['amount'])) * payout_rates[detail['field']]
                 actual_payout = base_payout * Decimal(str(detail['payout_rate']))
                 
-                order_item = OrderItem(
-                    order_id=new_order.id,
-                    number=result['number'],  # new field
-                    number_input=result['number'],  # legacy field (NOT NULL)
-                    number_norm=clean_number,
-                    field=detail['field'],
-                    amount=Decimal(str(detail['amount'])),  # new field
-                    buy_amount=Decimal(str(detail['amount'])),  # legacy field (NOT NULL)
-                    validation_factor=Decimal(str(detail['payout_rate'])),  # ⭐ สำคัญ!
-                    validation_reason=detail['reason'],
-                    current_usage_at_time=Decimal(str(detail['current_usage'])),
-                    limit_at_time=Decimal(str(detail['limit'])),
-                    is_blocked=detail['is_blocked'],
-                    # ⭐ แก้ปัญหา: ใส่ค่าเริ่มต้นสำหรับ legacy fields (NOT NULL constraint)
-                    payout_rate=Decimal(str(detail['payout_rate'])),  # ใช้ค่าเดียวกับ validation_factor
-                    potential_payout=actual_payout  # คำนวณจากข้อมูลจริง
-                )
-                
-                order_items.append(order_item)
-                db.session.add(order_item)
+                if key in consolidated_items:
+                    # รวมยอดกับรายการที่มีอยู่แล้ว
+                    existing = consolidated_items[key]
+                    existing['amount'] += Decimal(str(detail['amount']))
+                    existing['potential_payout'] += actual_payout
+                    # เก็บหมายเลขทั้งหมดที่รวมมา (สำหรับ display)
+                    existing['numbers'].append(result['number'])
+                    existing['details'].append(detail)
+                else:
+                    # สร้างรายการใหม่
+                    consolidated_items[key] = {
+                        'field': detail['field'],
+                        'number_norm': normalized_number,
+                        'amount': Decimal(str(detail['amount'])),
+                        'potential_payout': actual_payout,
+                        'validation_factor': Decimal(str(detail['payout_rate'])),
+                        'validation_reason': detail['reason'],
+                        'current_usage_at_time': Decimal(str(detail['current_usage'])),
+                        'limit_at_time': Decimal(str(detail['limit'])),
+                        'is_blocked': detail['is_blocked'],
+                        'numbers': [result['number']],  # เก็บหมายเลขต้นฉบับทั้งหมด
+                        'details': [detail]
+                    }
+        
+        # สร้าง OrderItem จาก consolidated data
+        order_items = []
+        for (field, number_norm), item_data in consolidated_items.items():
+            # สำหรับ display: ใช้หมายเลขแรกหรือรวมหมายเลข
+            display_numbers = ', '.join(item_data['numbers'])
+            
+            order_item = OrderItem(
+                order_id=new_order.id,
+                number=display_numbers,  # new field - แสดงหมายเลขทั้งหมดที่รวมมา
+                number_input=display_numbers,  # legacy field (NOT NULL)
+                number_norm=number_norm,  # normalized number
+                field=field,
+                amount=item_data['amount'],  # new field - ยอดรวม
+                buy_amount=item_data['amount'],  # legacy field (NOT NULL) - ยอดรวม
+                validation_factor=item_data['validation_factor'],  # ⭐ สำคัญ!
+                validation_reason=item_data['validation_reason'],
+                current_usage_at_time=item_data['current_usage_at_time'],
+                limit_at_time=item_data['limit_at_time'],
+                is_blocked=item_data['is_blocked'],
+                # ⭐ แก้ปัญหา: ใส่ค่าเริ่มต้นสำหรับ legacy fields (NOT NULL constraint)
+                payout_rate=item_data['validation_factor'],  # ใช้ค่าเดียวกับ validation_factor
+                potential_payout=item_data['potential_payout']  # คำนวณจากข้อมูลจริง
+            )
+            
+            order_items.append(order_item)
+            db.session.add(order_item)
         
         # Update NumberTotal for tracking
         for item in order_items:
