@@ -97,7 +97,7 @@
     <div class="row">
         <div class="col-12">
             <h3><i class="fas fa-chart-bar"></i> รายงานยอดขายและยอดที่คาดว่าจะจ่าย</h3>
-            <p class="text-muted">รายงานยอดขายรวมทั้งหมดในระบบ และการคำนวณยอดที่คาดว่าจะต้องจ่าย</p>
+            <p class="text-muted">รายงานยอดขายรวมทั้งหมดในระบบ และยอดจ่ายสูงสุดแต่ละชุด (เฉพาะเลขอันดับ 1 ของแต่ละประเภท)</p>
             
             <!-- Loading -->
             <div id="loading" class="text-center py-5">
@@ -125,10 +125,10 @@
                         <div class="card border-danger">
                             <div class="card-body text-center">
                                 <h5 class="card-title text-danger">
-                                    <i class="fas fa-hand-holding-usd"></i> ยอดคาดว่าจะจ่าย
+                                    <i class="fas fa-hand-holding-usd"></i> ยอดจ่ายสูงสุดแต่ละชุด
                                 </h5>
                                 <h2 class="text-danger" id="totalPayout">0</h2>
-                                <small class="text-muted">บาท</small>
+                                <small class="text-muted">บาท (เฉพาะอันดับ 1)</small>
                             </div>
                         </div>
                     </div>
@@ -151,6 +151,43 @@
                                 </h5>
                                 <h2 class="text-info" id="totalNumbers">0</h2>
                                 <small class="text-muted">เลข</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Top Numbers Summary -->
+            <div id="topNumbersSection" style="display: none;">
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header bg-warning text-dark">
+                                <h5 class="mb-0"><i class="fas fa-trophy"></i> เลขอันดับ 1 แต่ละประเภท (ที่ใช้คำนวณยอดจ่ายสูงสุด)</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-3 mb-2">
+                                        <strong>2 ตัวบน:</strong>
+                                        <span id="top2Top" class="text-primary">-</span>
+                                        <br><small id="top2TopPayout" class="text-muted">จ่าย: 0 บาท</small>
+                                    </div>
+                                    <div class="col-md-3 mb-2">
+                                        <strong>2 ตัวล่าง:</strong>
+                                        <span id="top2Bottom" class="text-primary">-</span>
+                                        <br><small id="top2BottomPayout" class="text-muted">จ่าย: 0 บาท</small>
+                                    </div>
+                                    <div class="col-md-3 mb-2">
+                                        <strong>3 ตัวบน:</strong>
+                                        <span id="top3Top" class="text-primary">-</span>
+                                        <br><small id="top3TopPayout" class="text-muted">จ่าย: 0 บาท</small>
+                                    </div>
+                                    <div class="col-md-3 mb-2">
+                                        <strong>โต๊ด:</strong>
+                                        <span id="topTote" class="text-primary">-</span>
+                                        <br><small id="topTotePayout" class="text-muted">จ่าย: 0 บาท</small>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -211,36 +248,88 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function loadSalesData() {
+    console.log('🔍 Starting to load sales data...');
+    
     // โหลดข้อมูลสรุปและ top sales พร้อมกัน
     Promise.all([
         fetch('/admin/api/sales-summary'),
         fetch('/admin/api/top-sales')
     ])
-    .then(responses => Promise.all(responses.map(r => r.json())))
+    .then(responses => {
+        console.log('📡 Received responses:', responses.map(r => ({status: r.status, ok: r.ok})));
+        
+        // ตรวจสอบ HTTP status
+        responses.forEach((response, index) => {
+            const apiName = index === 0 ? 'sales-summary' : 'top-sales';
+            console.log(`📊 API ${apiName}:`, {status: response.status, ok: response.ok});
+            
+            if (!response.ok) {
+                if (response.status === 302) {
+                    console.log('🚪 Redirecting to login...');
+                    window.location.href = '/login';
+                    return;
+                }
+                throw new Error(`HTTP Error ${response.status} for ${apiName}`);
+            }
+        });
+        return Promise.all(responses.map(r => r.json()));
+    })
     .then(([summaryData, topSalesData]) => {
+        console.log('📈 Summary data:', summaryData);
+        console.log('🏆 Top sales data:', topSalesData);
+        
         if (summaryData.success && topSalesData.success) {
+            console.log('✅ Both APIs successful, displaying data...');
             displaySummary(summaryData.data);
             displayTable(topSalesData.data);
         } else {
             const error = summaryData.error || topSalesData.error;
+            console.error('❌ API error:', error);
             showError(error || 'ไม่พบข้อมูล');
         }
     })
     .catch(error => {
-        console.error('Error:', error);
-        showError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+        console.error('💥 Exception occurred:', error);
+        showError('เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + error.message);
     });
 }
 
 function displaySummary(summaryData) {
     const overview = summaryData.overview;
+    const fieldGroups = summaryData.field_groups;
+    
+    // คำนวณยอดจ่ายสูงสุดแต่ละชุด และแสดงข้อมูลเลขอันดับ 1
+    let maxPayoutSum = 0;
+    const fieldTypes = [
+        {key: '2_top', displayId: 'top2Top', payoutId: 'top2TopPayout'},
+        {key: '2_bottom', displayId: 'top2Bottom', payoutId: 'top2BottomPayout'},
+        {key: '3_top', displayId: 'top3Top', payoutId: 'top3TopPayout'},
+        {key: 'tote', displayId: 'topTote', payoutId: 'topTotePayout'}
+    ];
+    
+    fieldTypes.forEach(fieldType => {
+        if (fieldGroups[fieldType.key] && fieldGroups[fieldType.key].length > 0) {
+            // หาเลขที่มียอดขายสูงสุดในประเภทนี้
+            const topNumber = fieldGroups[fieldType.key][0]; // ข้อมูลเรียงตามยอดขายแล้ว
+            maxPayoutSum += topNumber.estimated_payout;
+            
+            // แสดงข้อมูลเลขอันดับ 1
+            document.getElementById(fieldType.displayId).textContent = 
+                `${topNumber.number} (${formatNumberWithComma(topNumber.total_sales)} บาท)`;
+            document.getElementById(fieldType.payoutId).textContent = 
+                `จ่าย: ${formatNumberWithComma(topNumber.estimated_payout)} บาท`;
+        } else {
+            document.getElementById(fieldType.displayId).textContent = '-';
+            document.getElementById(fieldType.payoutId).textContent = 'จ่าย: 0 บาท';
+        }
+    });
     
     document.getElementById('grandTotal').textContent = formatNumberWithComma(overview.grand_total);
-    document.getElementById('totalPayout').textContent = formatNumberWithComma(overview.total_estimated_payout);
+    document.getElementById('totalPayout').textContent = formatNumberWithComma(maxPayoutSum);
     document.getElementById('totalNumbers').textContent = overview.total_numbers;
     
-    // แสดงกำไร/ขาดทุน
-    const profitLoss = overview.total_profit_loss;
+    // แสดงกำไร/ขาดทุน (ใช้ยอดจ่ายสูงสุดแต่ละชุด)
+    const profitLoss = overview.grand_total - maxPayoutSum;
     const profitCard = document.getElementById('profitCard');
     const profitTitle = document.getElementById('profitTitle');
     const profitLossEl = document.getElementById('profitLoss');
@@ -261,18 +350,19 @@ function displaySummary(summaryData) {
     
     // แสดงส่วนสรุป
     document.getElementById('summarySection').style.display = 'block';
+    document.getElementById('topNumbersSection').style.display = 'block';
 }
 
 function displayTable(data) {
     const tbody = document.getElementById('reportTableBody');
     
-    // หาความยาวสูงสุดของแต่ละประเภท
+    // หาความยาวสูงสุดของแต่ละประเภท (เฉพาะที่มีข้อมูลจริง)
     const maxRows = Math.max(
         (data['2_top'] || []).length,
         (data['2_bottom'] || []).length,
         (data['3_top'] || []).length,
         (data['tote'] || []).length,
-        20 // อย่างน้อย 20 แถว
+        1 // อย่างน้อย 1 แถว
     );
     
     let tableHTML = '';
@@ -282,6 +372,14 @@ function displayTable(data) {
         const item_2_bottom = (data['2_bottom'] || [])[i];
         const item_3_top = (data['3_top'] || [])[i];
         const item_tote = (data['tote'] || [])[i];
+        
+        // ตรวจสอบว่าแถวนี้มีข้อมูลอย่างน้อย 1 คอลัมน์หรือไม่
+        const hasData = item_2_top || item_2_bottom || item_3_top || item_tote;
+        
+        // ข้ามแถวที่ไม่มีข้อมูลเลย
+        if (!hasData) {
+            continue;
+        }
         
         tableHTML += `
             <tr>
@@ -302,6 +400,17 @@ function displayTable(data) {
                 <td class="${item_tote ? 'number-cell' : 'empty-cell'}">${item_tote ? item_tote.number : ''}</td>
                 <td class="${item_tote ? 'sales-cell' : 'empty-cell'}">${item_tote ? formatNumber(item_tote.total_sales) : ''}</td>
                 <td class="${item_tote ? 'payout-cell' : 'empty-cell'}">${item_tote ? formatNumber(item_tote.estimated_payout) : ''}</td>
+            </tr>
+        `;
+    }
+    
+    // แสดงข้อความถ้าไม่มีข้อมูลเลย
+    if (tableHTML === '') {
+        tableHTML = `
+            <tr>
+                <td colspan="13" class="text-center text-muted py-4">
+                    <i class="fas fa-info-circle"></i> ไม่พบข้อมูลยอดขาย
+                </td>
             </tr>
         `;
     }

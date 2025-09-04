@@ -14,6 +14,9 @@
                     <p class="text-muted mb-0">เลขที่ถูกห้ามแทงในระบบ</p>
                 </div>
                 <div>
+                    <button type="button" class="btn btn-danger me-2" onclick="confirmClearAll()">
+                        <i class="fas fa-trash-alt me-1"></i>ล้างทั้งหมด
+                    </button>
                     <a href="{{ url_for('admin.bulk_add_blocked_numbers') }}" class="btn btn-success me-2">
                         <i class="fas fa-table me-1"></i>เพิ่มหลายตัว
                     </a>
@@ -89,7 +92,42 @@
         </div>
     </div>
 
-    <!-- Main Table Card -->
+    <!-- Search and Filter -->
+    <div class="row mb-3">
+        <div class="col-md-8">
+            <form method="GET" class="d-flex">
+                <input type="text" name="search" class="form-control me-2" 
+                       placeholder="ค้นหาหมายเลข..." value="{{ search or '' }}">
+                <select name="field" class="form-select me-2" style="width: 200px;">
+                    <option value="">ทุกประเภท</option>
+                    <option value="2_top" {{ 'selected' if field_filter == '2_top' }}>2 ตัวบน</option>
+                    <option value="2_bottom" {{ 'selected' if field_filter == '2_bottom' }}>2 ตัวล่าง</option>
+                    <option value="3_top" {{ 'selected' if field_filter == '3_top' }}>3 ตัวบน</option>
+                    <option value="tote" {{ 'selected' if field_filter == 'tote' }}>โต๊ด</option>
+                </select>
+                <button type="submit" class="btn btn-outline-primary">
+                    <i class="fas fa-search"></i> ค้นหา
+                </button>
+            </form>
+        </div>
+        <div class="col-md-4 text-end">
+            <small class="text-muted">
+                แสดง {{ blocked_numbers.items|length }} จาก {{ blocked_numbers.total }} รายการ
+            </small>
+        </div>
+    </div>
+                            <p class="card-text">3 ตัวบน</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-trophy fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Blocked Numbers Table -->
     <div class="card">
         <div class="card-header">
             <h5 class="card-title mb-0">
@@ -97,24 +135,20 @@
             </h5>
         </div>
         <div class="card-body">
-            <!-- DEBUG INFO -->
-            <div style="background-color: #ffeb3b; padding: 10px; margin-bottom: 20px; border-radius: 4px;">
-                <strong>🔍 DEBUG:</strong>
-                ข้อมูลทั้งหมด: {{ blocked_numbers.items|length if blocked_numbers and blocked_numbers.items else 0 }} รายการ
-            </div>
+            <!-- BASIC DEBUG - Simple Text -->
+            <p style="color: red; font-size: 20px; font-weight: bold;">
+                🔍 DEBUG: Items = {{ blocked_numbers.items|length if blocked_numbers and blocked_numbers.items else 'NO DATA' }}
+            </p>
             
-            <!-- Table -->
+            <!-- FORCE SHOW TABLE -->
             <div class="table-responsive">
-                <table class="table table-striped table-hover">
-                    <thead class="table-dark">
+                <table class="table table-striped">
+                    <thead>
                         <tr>
-                            <th style="width: 80px;">#</th>
-                            <th style="width: 120px;">ประเภท</th>
-                            <th style="width: 100px;">หมายเลข</th>
-                            <th>เหตุผล</th>
-                            <th style="width: 150px;">วันที่สร้าง</th>
-                            <th style="width: 80px;">สถานะ</th>
-                            <th style="width: 100px;">จัดการ</th>
+                            <th>#</th>
+                            <th>ประเภท</th>
+                            <th>เลข</th>
+                            <th>สถานะ</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -122,62 +156,31 @@
                             {% for blocked in blocked_numbers.items %}
                             <tr>
                                 <td>{{ loop.index }}</td>
-                                <td>
-                                    {% if blocked.field == '2_top' %}
-                                        <span class="badge bg-info">2 ตัวบน</span>
-                                    {% elif blocked.field == '2_bottom' %}
-                                        <span class="badge bg-warning">2 ตัวล่าง</span>
-                                    {% elif blocked.field == '3_top' %}
-                                        <span class="badge bg-success">3 ตัวบน</span>
-                                    {% elif blocked.field == 'tote' %}
-                                        <span class="badge bg-primary">โต๊ด</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <strong class="text-primary">{{ blocked.number_norm }}</strong>
-                                </td>
-                                <td>
-                                    {{ blocked.reason or '-' }}
-                                </td>
-                                <td>
-                                    <small class="text-muted">
-                                        {{ blocked.created_at.strftime('%d/%m/%Y %H:%M') if blocked.created_at else '-' }}
-                                    </small>
-                                </td>
-                                <td>
-                                    {% if blocked.is_active %}
-                                        <span class="badge bg-success">เปิดใช้งาน</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">ปิดใช้งาน</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <div class="btn-group btn-group-sm" role="group">
-                                        <a href="{{ url_for('admin.edit_blocked_number', id=blocked.id) }}" 
-                                           class="btn btn-outline-primary" title="แก้ไข">
-                                            <i class="fas fa-edit"></i>
-                                        </a>
-                                        <a href="{{ url_for('admin.delete_blocked_number', id=blocked.id) }}" 
-                                           class="btn btn-outline-danger" title="ลบ"
-                                           onclick="return confirm('ต้องการลบเลขอั้น {{ blocked.number_norm }} หรือไม่?')">
-                                            <i class="fas fa-trash"></i>
-                                        </a>
-                                    </div>
-                                </td>
+                                <td>{{ blocked.field }}</td>
+                                <td>{{ blocked.number_norm }}</td>
+                                <td>{{ "เปิด" if blocked.is_active else "ปิด" }}</td>
                             </tr>
                             {% endfor %}
                         {% else %}
                             <tr>
-                                <td colspan="7" class="text-center py-4">
-                                    <i class="fas fa-ban fa-2x text-muted mb-3"></i>
-                                    <br>
-                                    <span class="text-muted">ยังไม่มีเลขอั้น</span>
+                                <td colspan="4" style="text-align: center; color: red;">
+                                    ❌ ไม่มีข้อมูล หรือ blocked_numbers = {{ blocked_numbers }}
                                 </td>
                             </tr>
                         {% endif %}
                     </tbody>
                 </table>
             </div>
+        </div>
+                <div class="text-center py-5">
+                    <i class="fas fa-ban fa-4x text-muted mb-3"></i>
+                    <h5 class="text-muted">ยังไม่มีเลขอั้น</h5>
+                    <p class="text-muted">เริ่มต้นด้วยการเพิ่มเลขที่ต้องการห้ามแทง</p>
+                    <a href="{{ url_for('admin.add_blocked_number') }}" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>เพิ่มเลขอั้นแรก
+                    </a>
+                </div>
+            {% endif %}
         </div>
     </div>
 </div>

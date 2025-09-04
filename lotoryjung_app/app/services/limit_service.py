@@ -188,6 +188,35 @@ class LimitService:
             return False
     
     @staticmethod
+    def get_default_group_limits() -> Dict[str, Decimal]:
+        """Get default limits for all field groups"""
+        limits = {}
+        
+        # Query default limit rules (rule_type='default_limit', number_norm=NULL)
+        default_rules = Rule.query.filter(
+            Rule.rule_type == 'default_limit',
+            Rule.number_norm.is_(None),
+            Rule.is_active == True
+        ).all()
+        
+        for rule in default_rules:
+            limits[rule.field] = Decimal(str(rule.value))
+        
+        # Set system fallback limits if not found in database
+        system_defaults = {
+            '2_top': Decimal('10000'),
+            '2_bottom': Decimal('10000'),
+            '3_top': Decimal('5000'),
+            'tote': Decimal('3000')
+        }
+        
+        for field, default_limit in system_defaults.items():
+            if field not in limits:
+                limits[field] = default_limit
+                
+        return limits
+    
+    @staticmethod
     def get_current_usage(field: str, number_norm: str, batch_id: str = None) -> Decimal:
         """Get current usage for specific number"""
         if not batch_id:

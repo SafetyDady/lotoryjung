@@ -176,6 +176,14 @@ def blocked_numbers():
     for field, count in field_counts:
         stats['by_field'][field] = count
     
+    # DEBUG: Print info to console
+    print(f"DEBUG blocked_numbers route:")
+    print(f"  Total items: {len(blocked_numbers.items) if blocked_numbers else 'None'}")
+    print(f"  Total pages: {blocked_numbers.total if blocked_numbers else 'None'}")
+    print(f"  Stats: {stats}")
+    if blocked_numbers and blocked_numbers.items:
+        print(f"  First item: {blocked_numbers.items[0].field} - {blocked_numbers.items[0].number_norm}")
+    
     return render_template('admin/blocked_numbers.html', 
                          blocked_numbers=blocked_numbers,
                          field_filter=field_filter,
