@@ -5,6 +5,28 @@ All notable changes to the Lotoryjung project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - 2025-09-05
+
+### 🎨 UI/UX Enhancements - Blocked Numbers Display
+#### Improved
+- **Layout Redesign**: Changed blocked numbers display from grid cards to vertical column table format
+- **Action Button Placement**: Moved edit/delete buttons from below numbers to the right side for better accessibility
+- **Table Structure**: Implemented 4-column vertical layout (2 ตัวบน | 2 ตัวล่าง | 3 ตัวบน | โต๊ด)
+- **Visual Organization**: Numbers now align vertically within each column for easier scanning
+- **Responsive Design**: Better space utilization and alignment across different screen sizes
+
+#### Technical
+- Updated template structure from card-based grid to table-based columns
+- Changed alignment from center to left with proper horizontal spacing
+- Enhanced Bootstrap integration with `justify-content-between` layout
+- Improved padding and spacing for better visual hierarchy
+
+#### Results
+- ✅ Cleaner, more organized blocked numbers management interface
+- ✅ Easier to scan and identify blocked numbers by category
+- ✅ More efficient use of screen space
+- ✅ Consistent action button placement throughout the interface
+
 ## [2.2.0] - 2025-09-05
 
 ### 🔧 Critical Template Fixes & Admin Enhancements
