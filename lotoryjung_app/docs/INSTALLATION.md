@@ -32,12 +32,13 @@ pip install -r requirements.txt
 # Create database structure
 python3 init_db.py
 
-# Set up default limits
+# Set up default limits (if needed)
 python3 init_limits.py
 ```
 
 ### 5. Start Server
 ```bash
+# Production-style server with proper logging
 python3 run_server.py
 ```
 
@@ -46,6 +47,27 @@ Application will be available at: **http://127.0.0.1:8080**
 ### 6. Default Login Credentials
 - **Admin**: admin / admin123
 - **Test User**: testuser / test123
+
+---
+
+## 🔥 Updated Features (Phase 4)
+
+### Security Enhancements
+- ✅ **CSRF Protection**: All forms now include CSRF tokens
+- ✅ **POST-only Deletions**: Delete operations use secure POST requests
+- ✅ **Confirmation Dialogs**: Prevent accidental deletions
+
+### Blocked Numbers System
+- ✅ **Bulk Add Improvements**: Fixed parameter naming issues
+- ✅ **Permutation Generation**: Automatic 2-digit and 3-digit permutations
+- ✅ **UI Enhancement**: 4-column layout with proper pagination (100 items/page)
+
+### Admin Interface
+- ❌ **Removed Edit Buttons**: Simplified UI as per user requirements
+- ✅ **Enhanced Delete**: Secure deletion with confirmation
+- ✅ **Better Debug Info**: Comprehensive logging for troubleshooting
+
+---
 
 ## Detailed Installation
 

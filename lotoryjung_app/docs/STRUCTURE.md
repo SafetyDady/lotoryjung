@@ -13,7 +13,7 @@ lotoryjung_app/
 │   │   └── rule.py              # Rule model (limits management)
 │   ├── routes/
 │   │   ├── __init__.py
-│   │   ├── admin.py             # Admin panel routes
+│   │   ├── admin.py             # 🔥 UPDATED: Admin panel routes (Phase 4 fixes)
 │   │   ├── auth.py              # Authentication routes
 │   │   └── main.py              # Main public routes
 │   ├── services/
@@ -21,7 +21,7 @@ lotoryjung_app/
 │   │   └── limit_service.py     # Business logic for limits management
 │   ├── utils/
 │   │   ├── __init__.py
-│   │   └── number_utils.py      # Number utilities and permutations
+│   │   └── number_utils.py      # 🔥 UPDATED: Number utilities and permutations (Fixed parameter naming)
 │   └── forms/
 │       ├── __init__.py
 │       └── blocked_numbers.py   # WTForms definitions
@@ -30,8 +30,9 @@ lotoryjung_app/
 │   ├── admin/
 │   │   ├── base.html           # Admin base template with navigation
 │   │   ├── dashboard.html      # Admin dashboard
-│   │   ├── blocked_numbers.html # Blocked numbers management
+│   │   ├── blocked_numbers.html # 🔥 UPDATED: Blocked numbers management (4-column layout, no edit buttons)
 │   │   ├── bulk_blocked_number_form.html # Bulk operations form
+│   │   ├── single_blocked_number_form.html # Single add form
 │   │   ├── group_limits.html   # Default group limits management
 │   │   ├── individual_limits.html # Individual number limits management
 │   │   └── edit_group_limits.html # Group limits editing form
@@ -42,12 +43,15 @@ lotoryjung_app/
 │   ├── css/
 │   │   └── style.css           # Custom styles
 │   ├── js/
-│   │   └── app.js              # JavaScript functions
+│   │   └── app.js              # 🔥 UPDATED: JavaScript functions (Bulk add functionality)
 │   └── receipts/               # Upload directory for receipts
 ├── docs/
 │   ├── DESIGN.md               # Original system design
 │   ├── GROUP_LIMITS_DESIGN.md  # Group limits design document
 │   ├── INDIVIDUAL_LIMITS_DESIGN.md # Individual limits design document
+│   ├── PERMUTATION_SYSTEM.md   # 🆕 NEW: Comprehensive permutation documentation
+│   ├── PROGRESS.md             # 🔥 UPDATED: Development progress with Phase 4 fixes
+│   ├── API_DOCUMENTATION.md    # 🔥 UPDATED: API docs with blocked numbers endpoints
 │   ├── STRUCTURE.md            # This file
 │   ├── INSTALLATION.md         # Setup guide
 │   └── PROGRESS.md             # Development log

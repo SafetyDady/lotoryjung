@@ -289,13 +289,13 @@ def generate_3_digit_permutations(number):
     return perm_list[:6]
 
 
-def generate_blocked_numbers_for_field(number, field_type):
+def generate_blocked_numbers_for_field(number, number_type):
     """
-    Generate all blocked number records for a given number and field type
+    Generate all blocked number records for a given number and number type
     
     Args:
         number: The input number (2 or 3 digits)
-        field_type: '2_top', '2_bottom', '3_top', 'tote'
+        number_type: '2_digit' or '3_digit' (not field names)
     
     Returns:
         List of dictionaries with number permutations
@@ -307,8 +307,8 @@ def generate_blocked_numbers_for_field(number, field_type):
     
     records = []
     
-    if field_type in ['2_top', '2_bottom'] and len(number_str) == 2:
-        # For 2-digit: Generate 2 permutations each for both 2_top and 2_bottom
+    if number_type == '2_digit' and len(number_str) == 2:
+        # For 2-digit: Generate permutations for both 2_top and 2_bottom
         permutations_list = generate_2_digit_permutations(number_str)
         
         # Add to 2_top field
@@ -329,7 +329,7 @@ def generate_blocked_numbers_for_field(number, field_type):
                 'original_input': number_str
             })
             
-    elif field_type in ['3_top', 'tote'] and len(number_str) == 3:
+    elif number_type == '3_digit' and len(number_str) == 3:
         # For 3-digit: 6 permutations in 3_top + 1 tote = 7 records total
         permutations_list = generate_3_digit_permutations(number_str)
         
@@ -421,9 +421,18 @@ def preview_bulk_blocked_numbers(numbers_data):
     all_records = []
     
     for item in numbers_data:
+        # Convert field to number_type
+        number_str = str(item['number']).strip()
+        if len(number_str) == 2:
+            number_type = '2_digit'
+        elif len(number_str) == 3:
+            number_type = '3_digit'
+        else:
+            continue  # Skip invalid numbers
+            
         records = generate_blocked_numbers_for_field(
             item['number'], 
-            item['field']
+            number_type
         )
         
         for record in records:

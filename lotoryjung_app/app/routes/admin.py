@@ -147,6 +147,8 @@ def dashboard():
 @admin_required
 def blocked_numbers():
     """Blocked numbers list"""
+    from flask_wtf import FlaskForm
+    
     page = request.args.get('page', 1, type=int)
     field_filter = request.args.get('field', '')
     search = request.args.get('search', '')
@@ -160,7 +162,7 @@ def blocked_numbers():
         query = query.filter(BlockedNumber.number_norm.contains(search))
     
     blocked_numbers = query.order_by(BlockedNumber.created_at.desc())\
-                          .paginate(page=page, per_page=20, error_out=False)
+                          .paginate(page=page, per_page=100, error_out=False)
     
     # Get statistics
     stats = {
@@ -184,23 +186,37 @@ def blocked_numbers():
     if blocked_numbers and blocked_numbers.items:
         print(f"  First item: {blocked_numbers.items[0].field} - {blocked_numbers.items[0].number_norm}")
     
+    # Create empty form for CSRF protection
+    delete_form = FlaskForm()
+    
     return render_template('admin/blocked_numbers.html', 
                          blocked_numbers=blocked_numbers,
                          field_filter=field_filter,
                          search=search,
-                         stats=stats)
+                         stats=stats,
+                         delete_form=delete_form)
 
 @admin_bp.route('/blocked_numbers/add', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def add_blocked_number():
-    """Add new blocked number"""
+    """Add new blocked number (single)"""
     form = BlockedNumberForm()
     
     if form.validate_on_submit():
         try:
+            # Convert field to number_type
+            number_str = str(form.number_norm.data).strip()
+            if len(number_str) == 2:
+                number_type = '2_digit'
+            elif len(number_str) == 3:
+                number_type = '3_digit'
+            else:
+                flash('เลขต้องเป็น 2 หรือ 3 หลัก', 'error')
+                return render_template('admin/single_blocked_number_form.html', form=form, title='เพิ่มเลขอั้น')
+            
             # Generate permutations
-            records = generate_blocked_numbers_for_field(form.number_norm.data, form.field.data)
+            records = generate_blocked_numbers_for_field(form.number_norm.data, number_type)
             
             for record in records:
                 blocked_number = BlockedNumber(
@@ -219,18 +235,38 @@ def add_blocked_number():
             db.session.rollback()
             flash('เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'error')
     
-    return render_template('admin/bulk_blocked_number_form.html', form=form, title='เพิ่มเลขอั้น')
+    return render_template('admin/single_blocked_number_form.html', form=form, title='เพิ่มเลขอั้น')
 
 @admin_bp.route('/blocked_numbers/bulk_add', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def bulk_add_blocked_numbers():
     """Bulk add blocked numbers with automatic permutation generation"""
+    print(f"🎯 DEBUG: เข้า bulk_add_blocked_numbers route - method: {request.method}")
+    
     form = BulkBlockedNumberForm()
     
-    if request.method == 'POST' and form.validate_on_submit():
-        # Get numbers data from JSON
-        numbers_data = request.get_json() if request.is_json else request.form.get('numbers_data')
+    if request.method == 'POST':
+        print(f"DEBUG BULK ADD POST:")
+        print(f"  Content-Type: {request.content_type}")
+        print(f"  Is JSON: {request.is_json}")
+        print(f"  Form data keys: {list(request.form.keys())}")
+        print(f"  Form validate: {form.validate_on_submit()}")
+        
+        if form.validate_on_submit():
+            # Get numbers data from JSON
+            numbers_data = request.get_json() if request.is_json else request.form.get('numbers_data')
+            print(f"  Numbers data: {numbers_data}")
+            
+            if isinstance(numbers_data, str):
+                import json
+                try:
+                    numbers_data = json.loads(numbers_data)
+                    print(f"  Parsed JSON: {numbers_data}")
+                except Exception as e:
+                    print(f"  JSON parse error: {e}")
+                    flash('ข้อมูลไม่ถูกต้อง', 'error')
+                    return redirect(url_for('admin.bulk_add_blocked_numbers'))
         
         if isinstance(numbers_data, str):
             import json
@@ -247,6 +283,12 @@ def bulk_add_blocked_numbers():
         # Validate and process input data
         validation_result = validate_bulk_numbers_new_format(numbers_data)
         
+        print(f"🔍 DEBUG VALIDATION:")
+        print(f"  Input numbers_data: {numbers_data}")
+        print(f"  Validation valid: {validation_result['valid']}")
+        print(f"  Valid numbers: {validation_result['valid_numbers']}")
+        print(f"  Errors: {validation_result['errors']}")
+        
         if not validation_result['valid']:
             for error in validation_result['errors'][:5]:  # Show first 5 errors
                 flash(error, 'error')
@@ -255,10 +297,12 @@ def bulk_add_blocked_numbers():
         success_count = 0
         error_count = 0
         errors = []
+        duplicate_count = 0
         
         try:
             # Clear all existing blocked numbers first
             deleted_count = BlockedNumber.query.delete()
+            print(f"🗑️ DEBUG: ล้าง blocked numbers ทั้งหมด {deleted_count} รายการ")
             
             # Process each input number and generate all permutations
             all_records = []
@@ -267,19 +311,26 @@ def bulk_add_blocked_numbers():
                 number = item['number']
                 number_type = item['type']
                 
+                print(f"🎲 DEBUG PERMUTATION: {number} ({number_type})")
+                
                 # Generate permutations based on number type
                 if number_type == '2_digit':
                     # For 2-digit, generate permutations for both 2_top and 2_bottom
-                    records_2top = generate_blocked_numbers_for_field(number, '2_top')
-                    all_records.extend(records_2top)
+                    records = generate_blocked_numbers_for_field(number, '2_digit')
+                    print(f"  → Generated {len(records)} records for 2_digit: {[r['field'] + ':' + r['number_norm'] for r in records]}")
+                    all_records.extend(records)
                 elif number_type == '3_digit':
                     # For 3-digit, generate permutations for 3_top and tote
-                    records = generate_blocked_numbers_for_field(number, '3_top')
+                    records = generate_blocked_numbers_for_field(number, '3_digit')
+                    print(f"  → Generated {len(records)} records for 3_digit: {[r['field'] + ':' + r['number_norm'] for r in records]}")
                     all_records.extend(records)
             
             # Remove duplicates and apply global settings
             unique_records = []
             seen = set()
+            
+            print(f"📝 DEBUG UNIQUE FILTERING:")
+            print(f"  Total records before filtering: {len(all_records)}")
             
             for record in all_records:
                 key = (record['field'], record['number_norm'])
@@ -290,10 +341,21 @@ def bulk_add_blocked_numbers():
                         record['reason'] = form.reason.data
                     record['is_active'] = form.is_active.data
                     unique_records.append(record)
+                else:
+                    print(f"  Skipping duplicate: {record['field']}:{record['number_norm']}")
+            
+            print(f"  Total unique records: {len(unique_records)}")
+            print(f"  Unique records by field:")
+            from collections import Counter
+            field_counts = Counter([r['field'] for r in unique_records])
+            for field, count in field_counts.items():
+                print(f"    {field}: {count}")
             
             # Batch insert new records to database
             if unique_records:
+                print(f"💾 DEBUG: เริ่มเพิ่ม {len(unique_records)} records ใหม่")
                 for record in unique_records:
+                    # ไม่ต้องเช็ค duplicate เพราะล้างไปแล้ว
                     try:
                         blocked_number = BlockedNumber(
                             field=record['field'],
@@ -308,9 +370,15 @@ def bulk_add_blocked_numbers():
                         errors.append(f"เลข {record['number_norm']}: {str(e)}")
                 
                 # Commit all changes (delete + insert)
+                print(f"💾 DEBUG: Committing transaction...")
                 db.session.commit()
+                print(f"✅ DEBUG: Transaction committed สำเร็จ!")
         
         except Exception as e:
+            print(f"❌ DEBUG: เกิด Exception: {str(e)}")
+            print(f"❌ DEBUG: Type: {type(e)}")
+            import traceback
+            traceback.print_exc()
             db.session.rollback()
             flash(f'เกิดข้อผิดพลาดในการบันทึก: {str(e)}', 'error')
             return render_template('admin/bulk_blocked_number_form.html', form=form, title='เพิ่มเลขอั้นหลายตัว')
@@ -320,6 +388,8 @@ def bulk_add_blocked_numbers():
             flash(f'✅ สำเร็จ! ล้างข้อมูลเก่า {deleted_count} รายการ และบันทึกข้อมูลใหม่ {success_count} รายการ', 'success')
             flash(f'📊 สถิติ: บันทึกจาก {len(validation_result["valid_numbers"])} เลขที่กรอก → สร้างเป็น {success_count} records ในฐานข้อมูล', 'info')
         
+        # ไม่แสดง duplicate เพราะล้างไปแล้ว
+        
         if error_count > 0:
             flash(f'⚠️ พบข้อผิดพลาด {error_count} รายการ', 'warning')
             for error in errors[:3]:  # Show first 3 errors
@@ -328,6 +398,7 @@ def bulk_add_blocked_numbers():
         if success_count > 0:
             return redirect(url_for('admin.blocked_numbers'))
         
+    print(f"🎯 DEBUG: bulk_add GET - แสดงฟอร์ม")
     return render_template('admin/bulk_blocked_number_form.html', form=form, title='เพิ่มเลขอั้นหลายตัว')
 
 @admin_bp.route('/blocked_numbers/<int:id>/edit', methods=['GET', 'POST'])

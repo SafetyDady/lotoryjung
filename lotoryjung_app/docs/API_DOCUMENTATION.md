@@ -21,6 +21,87 @@ headers: {
 }
 ```
 
+---
+
+## 🚫 Blocked Numbers Management APIs
+
+### Bulk Add Blocked Numbers
+**Added in Phase 4** - Creates blocked numbers with automatic permutation generation.
+
+**Endpoint**: `POST /admin/blocked_numbers/bulk_add`
+
+**Description**: 
+- Clears all existing blocked numbers
+- Generates permutations based on number type
+- Batch inserts new records
+
+**Request Headers**:
+```
+Content-Type: application/x-www-form-urlencoded
+```
+
+**Form Data**:
+```
+csrf_token=<token>
+numbers_data=[{"number":"12","type":"2_digit"},{"number":"123","type":"3_digit"}]
+reason=Optional reason
+is_active=true
+```
+
+**JavaScript Example**:
+```javascript
+const numbersData = [
+    {number: "12", type: "2_digit"},
+    {number: "123", type: "3_digit"}
+];
+
+const formData = new FormData();
+formData.append('csrf_token', document.querySelector('[name=csrf_token]').value);
+formData.append('numbers_data', JSON.stringify(numbersData));
+formData.append('reason', 'Bulk update');
+formData.append('is_active', 'y');
+
+fetch('/admin/blocked_numbers/bulk_add', {
+    method: 'POST',
+    body: formData
+});
+```
+
+**Permutation Generation**:
+- `2_digit` → 4 records (2 for 2_top, 2 for 2_bottom)
+- `3_digit` → 7 records (6 for 3_top, 1 for tote)
+
+**Response**: Redirects to blocked numbers list page with flash messages.
+
+---
+
+### Single Add Blocked Number  
+**Endpoint**: `POST /admin/blocked_numbers/add`
+
+**Description**: Adds a single number with automatic permutation generation.
+
+**Request**: Standard form POST with CSRF protection.
+
+---
+
+### Delete Blocked Number
+**Endpoint**: `POST /admin/blocked_numbers/<id>/delete`
+
+**Description**: Deletes a specific blocked number record.
+
+**Security**: CSRF protected POST request with confirmation dialog.
+
+---
+
+### Clear All Blocked Numbers
+**Endpoint**: `POST /admin/blocked_numbers/clear_all`
+
+**Description**: Removes all blocked numbers from database.
+
+**Security**: CSRF protected with confirmation.
+
+---
+
 ## Individual Limits Management APIs
 
 ### Set Individual Limit
