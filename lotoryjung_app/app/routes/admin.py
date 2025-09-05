@@ -512,11 +512,18 @@ def users():
 def group_limits():
     """Group limits dashboard"""
     try:
+        print("🎯 DEBUG: เข้า group_limits route")
         dashboard_data = LimitService.get_limits_dashboard_data()
+        print(f"🎯 DEBUG: dashboard_data keys = {list(dashboard_data.keys())}")
+        print(f"🎯 DEBUG: sample data = {list(dashboard_data.values())[0] if dashboard_data else 'No data'}")
+        
         return render_template('admin/group_limits.html', 
                              dashboard_data=dashboard_data,
                              title='จัดการขีดจำกัดกลุ่มเลข')
     except Exception as e:
+        print(f"🚨 ERROR in group_limits: {str(e)}")
+        import traceback
+        traceback.print_exc()
         flash(f'เกิดข้อผิดพลาด: {str(e)}', 'error')
         return redirect(url_for('admin.dashboard'))
 

@@ -307,60 +307,67 @@ class LimitService:
     
     @staticmethod
     def get_limits_dashboard_data(batch_id: str = None) -> Dict:
-        """Get dashboard data for limits overview"""
+        """Get dashboard data for limits overview - showing individual number risks"""
         if not batch_id:
             batch_id = LimitService._get_current_batch_id()
         
         default_limits = LimitService.get_default_group_limits()
         
-        # Get usage summary by field
+        # Get usage summary by field - focus on individual numbers
         dashboard_data = {}
         for field in ['2_top', '2_bottom', '3_top', 'tote']:
+            # Get all numbers with totals for this field
             totals = NumberTotal.query.filter(
                 NumberTotal.batch_id == batch_id,
                 NumberTotal.field == field
-            ).all()
+            ).order_by(NumberTotal.total_amount.desc()).all()
             
-            total_usage = sum(t.total_amount for t in totals)
-            numbers_count = len(totals)
-            over_limit_count = 0
+            # Get default limit for this field (used as individual limit too)
+            default_limit = default_limits.get(field, Decimal('700'))
             
-            # Count numbers over their individual limits
+            # Analyze individual numbers
+            exceeded_numbers = []  # Numbers over limit
+            risky_numbers = []    # Numbers 90%+ of limit
+            top_numbers = []      # Top 10 by amount
+            
             for total in totals:
-                limit = LimitService.get_individual_limit(field, total.number_norm)
-                if total.total_amount > limit:
-                    over_limit_count += 1
+                # Get individual limit (could be custom or default)
+                individual_limit = LimitService.get_individual_limit(field, total.number_norm)
+                usage_percent = float((total.total_amount / individual_limit) * 100) if individual_limit > 0 else 0
+                
+                number_info = {
+                    'number': total.number_norm,
+                    'amount': total.total_amount,
+                    'limit': individual_limit,
+                    'usage_percent': round(usage_percent, 1),
+                    'order_count': total.order_count
+                }
+                
+                # Categorize numbers
+                if total.total_amount > individual_limit:
+                    exceeded_numbers.append(number_info)
+                elif usage_percent >= 90:
+                    risky_numbers.append(number_info)
+                
+                # Add to top list (limit to 10)
+                if len(top_numbers) < 10:
+                    top_numbers.append(number_info)
             
-            # Get default limit for this field
-            limit_amount = default_limits.get(field, Decimal('0'))
-            
-            # Calculate percentages
-            usage_percent = 0
-            remaining_amount = limit_amount - total_usage
-            
-            if limit_amount > 0:
-                usage_percent = float((total_usage / limit_amount) * 100)
-            
-            # Determine status
-            status = 'safe'
-            if usage_percent >= 90:
-                status = 'danger'
-            elif usage_percent >= 75:
-                status = 'warning'
-            elif usage_percent >= 50:
-                status = 'info'
+            # Calculate totals for reference
+            total_orders = sum(t.order_count for t in totals)
+            numbers_count = len(totals)
             
             dashboard_data[field] = {
                 'field_name': LimitService._get_field_display_name(field),
-                'limit_amount': limit_amount,
-                'used_amount': total_usage,
-                'remaining_amount': remaining_amount,
-                'usage_percent': round(usage_percent, 1),
-                'order_count': sum(t.order_count for t in totals),
-                'number_count': numbers_count,
-                'over_limit_count': over_limit_count,
-                'status': status,
-                'is_exceeded': total_usage > limit_amount
+                'default_limit': default_limit,
+                'exceeded_count': len(exceeded_numbers),
+                'risky_count': len(risky_numbers),
+                'total_orders': total_orders,
+                'total_numbers': numbers_count,
+                'exceeded_numbers': exceeded_numbers[:5],  # Show top 5 exceeded
+                'risky_numbers': risky_numbers[:5],       # Show top 5 risky  
+                'top_numbers': top_numbers[:5],           # Show top 5 amounts
+                'status': 'danger' if exceeded_numbers else 'warning' if risky_numbers else 'safe'
             }
         
         return dashboard_data
