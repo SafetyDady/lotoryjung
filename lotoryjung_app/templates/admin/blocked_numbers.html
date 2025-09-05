@@ -25,76 +25,6 @@
         </div>
     </div>
 
-    <!-- Statistics Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card bg-danger text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="card-title">{{ stats.total or 0 }}</h4>
-                            <p class="card-text">เลขอั้นทั้งหมด</p>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-ban fa-2x"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="card-title">{{ stats.by_field.get('2_top', 0) + stats.by_field.get('2_bottom', 0) }}</h4>
-                            <p class="card-text">2 หลัก</p>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-hashtag fa-2x"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="card-title">{{ stats.by_field.get('3_top', 0) }}</h4>
-                            <p class="card-text">3 ตัวบน</p>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-list-ol fa-2x"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="card-title">{{ stats.by_field.get('tote', 0) }}</h4>
-                            <p class="card-text">โต๊ด</p>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-dice fa-2x"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- DEBUG INFO -->
-    <div style="background-color: #ffeb3b; padding: 10px; margin-bottom: 20px; border-radius: 4px;">
-        <strong>🔍 DEBUG:</strong>
-        ข้อมูลทั้งหมด: {{ blocked_numbers.items|length if blocked_numbers and blocked_numbers.items else 0 }} รายการ
-    </div>
-
     {% if blocked_numbers and blocked_numbers.items %}
         <!-- Group blocked numbers by field -->
         {% set numbers_2_top = [] %}
@@ -124,22 +54,22 @@
                             <tr>
                                 {% if numbers_2_top %}
                                 <th class="text-center bg-info text-white" style="width: 25%;">
-                                    <i class="fas fa-hashtag me-2"></i>2 ตัวบน
+                                    <i class="fas fa-hashtag me-2"></i>2 ตัวบน ({{ numbers_2_top|length }} รายการ)
                                 </th>
                                 {% endif %}
                                 {% if numbers_2_bottom %}
                                 <th class="text-center bg-warning text-dark" style="width: 25%;">
-                                    <i class="fas fa-hashtag me-2"></i>2 ตัวล่าง
+                                    <i class="fas fa-hashtag me-2"></i>2 ตัวล่าง ({{ numbers_2_bottom|length }} รายการ)
                                 </th>
                                 {% endif %}
                                 {% if numbers_3_top %}
                                 <th class="text-center bg-success text-white" style="width: 25%;">
-                                    <i class="fas fa-list-ol me-2"></i>3 ตัวบน
+                                    <i class="fas fa-list-ol me-2"></i>3 ตัวบน ({{ numbers_3_top|length }} รายการ)
                                 </th>
                                 {% endif %}
                                 {% if numbers_tote %}
                                 <th class="text-center bg-primary text-white" style="width: 25%;">
-                                    <i class="fas fa-dice me-2"></i>โต๊ด
+                                    <i class="fas fa-dice me-2"></i>โต๊ด ({{ numbers_tote|length }} รายการ)
                                 </th>
                                 {% endif %}
                             </tr>
