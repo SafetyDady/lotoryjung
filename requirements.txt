@@ -1,0 +1,11 @@
+flask
+flask_sqlalchemy
+flask_migrate
+flask_login
+flask_wtf
+flask_limiter
+flask_cors
+flask_socketio
+python-dotenv
+python-dotenv
+

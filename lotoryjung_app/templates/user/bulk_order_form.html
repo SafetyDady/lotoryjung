@@ -100,6 +100,68 @@
     border: 1px solid #f5c6cb;
 }
 
+.status-cell {
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    text-align: center;
+    display: inline-block;
+    min-width: 80px;
+}
+
+.status-normal {
+    background: #d1edff;
+    color: #0c5460;
+}
+
+.status-blocked {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.status-warning {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.delete-btn {
+    background: none;
+    border: none;
+    color: #dc3545;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 3px;
+}
+
+.delete-btn:hover {
+    background: #f8d7da;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.btn-submit {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    border: none;
+    color: white;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.btn-submit:hover:not(:disabled) {
+    background: linear-gradient(135deg, #218838 0%, #1ea085 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.btn-submit:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+}
+
 .action-buttons {
     padding: 20px;
     text-align: center;
@@ -224,7 +286,7 @@
         <!-- Validation Status -->
         <div id="validationStatus" class="validation-status status-pending">
             <i class="fas fa-clock me-2"></i>
-            กรุณากรอกข้อมูลและกดปุ่ม "ตรวจสอบ ราคา" ก่อนสั่งซื้อ
+            กรุณากรอกข้อมูลและกดปุ่ม "กดสั่ง" เพื่อสั่งซื้อ
         </div>
 
         <!-- Customer Information -->
@@ -272,14 +334,16 @@
             </div>
 
             <!-- Order Items -->
-            <div id="orderItems">
-                <!-- Dynamic rows will be added here -->
-            </div>
+            <table class="table table-borderless mb-0" id="orderTable">
+                <tbody id="orderTableBody">
+                    <!-- Dynamic rows will be added here -->
+                </tbody>
+            </table>
 
             <!-- Add Row Button -->
             <div class="row order-row">
                 <div class="col-12 text-center py-3">
-                    <button type="button" class="btn btn-outline-primary" id="addRowBtn" onclick="addOrderRow()">
+                    <button type="button" class="btn btn-outline-primary" id="addRowBtn">
                         <i class="fas fa-plus me-2"></i>
                         เพิ่มรายการ (เหลือ <span id="remainingRows">20</span> รายการ)
                     </button>
@@ -289,14 +353,9 @@
             <!-- Action Buttons -->
             <div class="action-buttons">
                 <div class="row">
-                    <div class="col-md-6 mb-2">
-                        <button type="button" class="btn btn-validate btn-lg w-100" id="validateBtn" onclick="validateOrder()">
-                            <i class="fas fa-search me-2"></i>
-                            ตรวจสอบ ราคา
-                        </button>
-                    </div>
-                    <div class="col-md-6 mb-2">
-                        <button type="button" class="btn btn-submit btn-lg w-100" id="submitBtn" onclick="submitOrder()" disabled>
+                    <div class="col-md-12 mb-2">
+                        <button type="button" class="btn btn-submit btn-lg w-100" id="submitBtn">
+                            <span id="submitSpinner" class="spinner-border spinner-border-sm me-2 hidden" role="status"></span>
                             <i class="fas fa-shopping-cart me-2"></i>
                             กดสั่ง
                         </button>
@@ -381,937 +440,33 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/improved_frontend.js') }}"></script>
 <script>
-// Global variables
-let orderRows = [];
-let maxRows = 20;
-let isValidated = false;
-let validationResults = [];
-
-// Payout rates - will be loaded from API
-let payoutRates = {
-    '2_top': 90,
-    '2_bottom': 90,
-    '3_top': 900,
-    'tote': 150
-};
-
-// Load payout rates from API
-async function loadPayoutRates() {
-    try {
-        const response = await fetch('/api/get_payout_rates');
-        if (response.ok) {
-            const data = await response.json();
-            if (data.success) {
-                payoutRates = data.rates;
-                console.log('✅ Loaded payout rates from database:', payoutRates);
-            }
-        }
-    } catch (error) {
-        console.warn('⚠️ Failed to load payout rates from API, using defaults');
-    }
-}
-
-// Form data structure for each row
-function createRowData(rowId) {
-    return {
-        rowId: rowId,
-        number: '',
-        amount_2_top: 0,
-        amount_2_bottom: 0,
-        amount_3_top: 0,
-        amount_tote: 0,
-        payout_2_top: 1.0,
-        payout_2_bottom: 1.0,
-        payout_3_top: 1.0,
-        payout_tote: 1.0,
-        isValidated: false,
-        validationMessages: []
-    };
-}
-
-// Validate number format and enable/disable fields
-function validateNumberAndToggleFields(rowId) {
-    const numberInput = document.querySelector(`input[name="number_${rowId}"]`);
-    const number = numberInput.value.trim();
-    const clean = number.replace(/\D/g, '');
-    
-    // Get field inputs
-    const topInput = document.querySelector(`input[name="amount_2_top_${rowId}"]`);
-    const bottomInput = document.querySelector(`input[name="amount_2_bottom_${rowId}"]`);
-    const toteInput = document.querySelector(`input[name="amount_tote_${rowId}"]`);
-    
-    // Reset all fields first
-    topInput.disabled = false;
-    bottomInput.disabled = false;
-    toteInput.disabled = false;
-    topInput.style.backgroundColor = '';
-    bottomInput.style.backgroundColor = '';
-    toteInput.style.backgroundColor = '';
-    
-    if (clean.length === 2) {
-        // 2 ตัว: สามารถซื้อได้เฉพาะ "บน" และ "ล่าง" - ซื้อโต๊ดไม่ได้
-        toteInput.disabled = true;
-        toteInput.style.backgroundColor = '#f8f9fa';
-        toteInput.value = '';
-        toteInput.placeholder = 'ไม่สามารถซื้อโต๊ดได้';
-        
-        // Update labels
-        topInput.placeholder = '2 ตัวบน';
-        bottomInput.placeholder = '2 ตัวล่าง';
-        
-    } else if (clean.length === 3) {
-        // 3 ตัว: สามารถซื้อได้เฉพาะ "3บน" และ "โต๊ด" - ซื้อล่างไม่ได้
-        bottomInput.disabled = true;
-        bottomInput.style.backgroundColor = '#f8f9fa';
-        bottomInput.value = '';
-        bottomInput.placeholder = 'ไม่สามารถซื้อล่างได้';
-        
-        // Update labels
-        topInput.placeholder = '3 ตัวบน';
-        toteInput.placeholder = 'โต๊ด';
-        
-    } else if (clean.length === 0) {
-        // ไม่มีเลข: เปิดใช้งานทุกช่อง แต่ไม่ให้กรอกข้อมูล
-        topInput.placeholder = 'บน';
-        bottomInput.placeholder = 'ล่าง';
-        toteInput.placeholder = 'โต๊ด';
-        
-    } else {
-        // เลขไม่ถูกต้อง: disable ทุกช่อง
-        topInput.disabled = true;
-        bottomInput.disabled = true;
-        toteInput.disabled = true;
-        topInput.style.backgroundColor = '#f8f9fa';
-        bottomInput.style.backgroundColor = '#f8f9fa';
-        toteInput.style.backgroundColor = '#f8f9fa';
-        topInput.value = '';
-        bottomInput.value = '';
-        toteInput.value = '';
-        topInput.placeholder = 'เลขไม่ถูกต้อง';
-        bottomInput.placeholder = 'เลขไม่ถูกต้อง';
-        toteInput.placeholder = 'เลขไม่ถูกต้อง';
-    }
-    
-    // Clear payout display when number changes
-    const payoutDisplay = document.getElementById(`payout_${rowId}`);
-    payoutDisplay.innerHTML = '<small class="d-block text-muted">รอข้อมูล</small>';
-    
-    // Update row payout display
-    updateRowPayout(rowId);
-    
-    // Reset validation status
-    resetValidation();
-}
-
-// Validate field input based on number type
-function validateFieldInput(rowId, fieldType) {
-    const numberInput = document.querySelector(`input[name="number_${rowId}"]`);
-    const number = numberInput.value.trim();
-    const clean = number.replace(/\D/g, '');
-    
-    // Get the input that was changed
-    let changedInput;
-    if (fieldType === 'top') {
-        changedInput = document.querySelector(`input[name="amount_2_top_${rowId}"]`);
-    } else if (fieldType === 'bottom') {
-        changedInput = document.querySelector(`input[name="amount_2_bottom_${rowId}"]`);
-    } else if (fieldType === 'tote') {
-        changedInput = document.querySelector(`input[name="amount_tote_${rowId}"]`);
-    }
-    
-    const value = parseFloat(changedInput.value) || 0;
-    
-    // Validate based on number type
-    if (clean.length === 2 && fieldType === 'tote' && value > 0) {
-        alert('เลข 2 ตัวไม่สามารถซื้อโต๊ดได้');
-        changedInput.value = '';
-        return;
-    }
-    
-    if (clean.length === 3 && fieldType === 'bottom' && value > 0) {
-        alert('เลข 3 ตัวไม่สามารถซื้อล่างได้');
-        changedInput.value = '';
-        return;
-    }
-}
-
-// Add new order row
-function addOrderRow() {
-    if (orderRows.length >= maxRows) {
-        alert(`สามารถเพิ่มได้สูงสุด ${maxRows} รายการเท่านั้น`);
-        return;
-    }
-
-    const rowId = 'row_' + Date.now();
-    const rowNumber = orderRows.length + 1;
-    
-    const rowHtml = `
-        <div class="row order-row" id="${rowId}" data-row-id="${rowId}">
-            <div class="col-1 row-number d-flex align-items-center justify-content-center">
-                ${rowNumber}
-            </div>
-            <div class="col-2">
-                <input type="text" 
-                       class="form-control order-input number-input" 
-                       name="number_${rowId}"
-                       placeholder="เลข"
-                       maxlength="3"
-                       onchange="validateNumberAndToggleFields('${rowId}')"
-                       oninput="resetValidation()">
-            </div>
-            <div class="col-2">
-                <input type="number" 
-                       class="form-control order-input amount-input" 
-                       name="amount_2_top_${rowId}"
-                       placeholder="บน"
-                       min="0"
-                       step="1"
-                       onchange="updateRowPayout('${rowId}')"
-                       oninput="resetValidation(); validateFieldInput('${rowId}', 'top')">
-            </div>
-            <div class="col-2">
-                <input type="number" 
-                       class="form-control order-input amount-input" 
-                       name="amount_2_bottom_${rowId}"
-                       placeholder="ล่าง"
-                       min="0"
-                       step="1"
-                       onchange="updateRowPayout('${rowId}')"
-                       oninput="resetValidation(); validateFieldInput('${rowId}', 'bottom')">
-            </div>
-            <div class="col-2">
-                <input type="number" 
-                       class="form-control order-input amount-input" 
-                       name="amount_tote_${rowId}"
-                       placeholder="โต๊ด"
-                       min="0"
-                       step="1"
-                       onchange="updateRowPayout('${rowId}')"
-                       oninput="resetValidation(); validateFieldInput('${rowId}', 'tote')">
-            </div>
-            <div class="col-2 d-flex align-items-center justify-content-center">
-                <div class="payout-display" id="payout_${rowId}">
-                    <small class="d-block text-muted">รอข้อมูล</small>
-                </div>
-            </div>
-            <div class="col-1 d-flex align-items-center justify-content-center">
-                <button type="button" class="btn btn-sm btn-outline-info me-1" 
-                        onclick="validateSingleRow('${rowId}')" 
-                        id="validateRowBtn_${rowId}"
-                        title="ตรวจสอบราคาจ่าย">
-                    <i class="fas fa-calculator"></i>
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-danger" 
-                        onclick="removeRow('${rowId}')"
-                        title="ลบรายการ">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="col-12" id="messages_${rowId}">
-                <!-- Validation messages will appear here -->
-            </div>
-        </div>
-    `;
-    
-    document.getElementById('orderItems').insertAdjacentHTML('beforeend', rowHtml);
-    orderRows.push(rowId);
-    updateRemainingCount();
-    resetValidation();
-}
-
-// Update row payout display - only show purchase amounts, not payout
-function updateRowPayout(rowId) {
-    const numberInput = document.querySelector(`input[name="number_${rowId}"]`);
-    const topInput = document.querySelector(`input[name="amount_2_top_${rowId}"]`);
-    const bottomInput = document.querySelector(`input[name="amount_2_bottom_${rowId}"]`);
-    const toteInput = document.querySelector(`input[name="amount_tote_${rowId}"]`);
-    const payoutDisplay = document.getElementById(`payout_${rowId}`);
-    
-    const number = numberInput.value.trim();
-    const clean = number.replace(/\D/g, '');
-    const topAmount = parseFloat(topInput.value) || 0;
-    const bottomAmount = parseFloat(bottomInput.value) || 0;
-    const toteAmount = parseFloat(toteInput.value) || 0;
-    
-    let amountHtml = '';
-    let hasAmount = false;
-    
-    if (clean.length === 2) {
-        // 2 ตัว - show purchase amounts only
-        if (topAmount > 0) {
-            amountHtml += `<small class="d-block text-primary">2บน: ${topAmount.toLocaleString()} บาท</small>`;
-            hasAmount = true;
-        }
-        if (bottomAmount > 0) {
-            amountHtml += `<small class="d-block text-primary">2ล่าง: ${bottomAmount.toLocaleString()} บาท</small>`;
-            hasAmount = true;
-        }
-    } else if (clean.length === 3) {
-        // 3 ตัว - show purchase amounts only
-        if (topAmount > 0) {
-            amountHtml += `<small class="d-block text-primary">3บน: ${topAmount.toLocaleString()} บาท</small>`;
-            hasAmount = true;
-        }
-        if (toteAmount > 0) {
-            amountHtml += `<small class="d-block text-primary">โต๊ด: ${toteAmount.toLocaleString()} บาท</small>`;
-            hasAmount = true;
-        }
-    }
-    
-    if (!hasAmount) {
-        amountHtml = '<small class="d-block text-muted">รอข้อมูล</small>';
-    } else {
-        amountHtml += '<small class="d-block text-warning mt-1"><i class="fas fa-calculator"></i> กดปุ่มตรวจสอบเพื่อดูราคาจ่าย</small>';
-    }
-    
-    payoutDisplay.innerHTML = amountHtml;
-}
-
-// Validate single row
-async function validateSingleRow(rowId) {
-    const validateBtn = document.getElementById(`validateRowBtn_${rowId}`);
-    const originalHtml = validateBtn.innerHTML;
-    
-    validateBtn.disabled = true;
-    validateBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-    
-    try {
-        const rowData = collectSingleRowData(rowId);
-        console.log('collectSingleRowData result:', rowData);
-        
-        if (!rowData) {
-            showRowMessage(rowId, 'กรุณากรอกข้อมูลให้ครบถ้วน', 'error');
-            return;
-        }
-        
-        console.log('CSRF Token:', getCSRFToken());
-        
-        // Call API validation
-        console.log('Sending request to /api/validate_single_item with data:', rowData);
-        
-        const response = await fetch('/api/validate_single_item', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCSRFToken()
-            },
-            body: JSON.stringify(rowData)
-        });
-        
-        console.log('Response status:', response.status);
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('API error response:', errorText);
-            showRowMessage(rowId, `เกิดข้อผิดพลาด: ${response.status}`, 'error');
-            return;
-        }
-        
-        const result = await response.json();
-        console.log('API result:', result);
-        
-        if (!result.success) {
-            showRowMessage(rowId, result.error, 'error');
-            return;
-        }
-        
-        // Display validation results
-        let messages = [];
-        let hasReduced = false;
-        
-        result.results.forEach(fieldResult => {
-            const statusClass = fieldResult.payout_rate === 1.0 ? 'success' : 'warning';
-            if (fieldResult.payout_rate < 1.0) hasReduced = true;
-            
-            messages.push(`${fieldResult.field_display}: ${fieldResult.reason} (จ่าย ${fieldResult.payout_rate}x)`);
-        });
-        
-        showRowMessage(rowId, `✅ ${messages.join(' | ')}`, hasReduced ? 'warning' : 'success');
-        
-        // Update payout display with actual rates
-        updateRowPayoutWithValidation(rowId, result.results);
-        
-    } catch (error) {
-        showRowMessage(rowId, 'เกิดข้อผิดพลาดในการตรวจสอบ', 'error');
-        console.error('Single validation error:', error);
-    } finally {
-        validateBtn.disabled = false;
-        validateBtn.innerHTML = originalHtml;
-    }
-}
-
-// Update row payout with validation results
-function updateRowPayoutWithValidation(rowId, validationResults) {
-    const payoutDisplay = document.getElementById(`payout_${rowId}`);
-    let payoutHtml = '';
-    
-    validationResults.forEach(result => {
-        const colorClass = result.payout_rate === 1.0 ? 'text-success' : 'text-danger';
-        const factorText = result.payout_rate === 1.0 ? 'เต็มราคา' : 'ลดราคา';
-        const payout = result.amount * getPayoutRate(result.field) * result.payout_rate;
-        
-        payoutHtml += `<small class="d-block ${colorClass}">${result.field_display}: ${payout.toLocaleString()} บาท (${factorText})</small>`;
-    });
-    
-    payoutDisplay.innerHTML = payoutHtml || '<small class="d-block text-muted">รอข้อมูล</small>';
-}
-
-// Get payout rate for field
-function getPayoutRate(field) {
-    return payoutRates[field] || 0;
-}
-
-// Get CSRF token
-function getCSRFToken() {
-    const metaTag = document.querySelector('meta[name="csrf-token"]');
-    if (metaTag) {
-        const token = metaTag.getAttribute('content');
-        console.log('Found CSRF token from meta tag:', token);
-        return token;
-    }
-    
-    // Try to get from cookie
-    const cookies = document.cookie.split(';');
-    for (let cookie of cookies) {
-        const [name, value] = cookie.trim().split('=');
-        if (name === 'csrf_token') {
-            console.log('Found CSRF token from cookie:', value);
-            return value;
-        }
-    }
-    
-    // Try to get from form input
-    const csrfInput = document.querySelector('input[name="csrf_token"]');
-    if (csrfInput) {
-        const token = csrfInput.value;
-        console.log('Found CSRF token from input:', token);
-        return token;
-    }
-    
-    console.warn('No CSRF token found');
-    return '';
-}
-
-// Collect single row data
-function collectSingleRowData(rowId) {
-    const numberInput = document.querySelector(`input[name="number_${rowId}"]`);
-    const topInput = document.querySelector(`input[name="amount_2_top_${rowId}"]`);
-    const bottomInput = document.querySelector(`input[name="amount_2_bottom_${rowId}"]`);
-    const toteInput = document.querySelector(`input[name="amount_tote_${rowId}"]`);
-    
-    const number = numberInput.value.trim();
-    const clean = number.replace(/\D/g, '');
-    const topAmount = parseFloat(topInput.value) || 0;
-    const bottomAmount = parseFloat(bottomInput.value) || 0;
-    const toteAmount = parseFloat(toteInput.value) || 0;
-    
-    // Check if number is valid
-    if (!number || (clean.length !== 2 && clean.length !== 3)) {
-        return null;
-    }
-    
-    // Check if any amount is entered
-    if ((topAmount + bottomAmount + toteAmount) === 0) {
-        return null;
-    }
-    
-    // Validate field combinations
-    if (clean.length === 2) {
-        // 2 ตัว: ไม่สามารถซื้อโต๊ดได้
-        if (toteAmount > 0) {
-            alert('เลข 2 ตัวไม่สามารถซื้อโต๊ดได้');
-            return null;
-        }
-    } else if (clean.length === 3) {
-        // 3 ตัว: ไม่สามารถซื้อล่างได้
-        if (bottomAmount > 0) {
-            alert('เลข 3 ตัวไม่สามารถซื้อล่างได้');
-            return null;
-        }
-    }
-    
-    return {
-        rowId,
-        number,
-        amount_2_top: topAmount,
-        amount_2_bottom: bottomAmount,
-        amount_tote: toteAmount
-    };
-}
-
-// Show row message
-function showRowMessage(rowId, message, type) {
-    const messagesDiv = document.getElementById(`messages_${rowId}`);
-    const className = type === 'success' ? 'warning-message' : 
-                     type === 'warning' ? 'warning-message' : 'error-message';
-    const icon = type === 'success' ? 'fa-check-circle' : 
-                type === 'warning' ? 'fa-exclamation-triangle' : 'fa-times-circle';
-    
-    messagesDiv.innerHTML = `
-        <div class="${className}">
-            <i class="fas ${icon} me-1"></i>
-            ${message}
-        </div>
-    `;
-}
-
-// Update row payout with validation factor
-function updateRowPayoutWithFactor(rowId, factor) {
-    const numberInput = document.querySelector(`input[name="number_${rowId}"]`);
-    const topInput = document.querySelector(`input[name="amount_2_top_${rowId}"]`);
-    const bottomInput = document.querySelector(`input[name="amount_2_bottom_${rowId}"]`);
-    const toteInput = document.querySelector(`input[name="amount_tote_${rowId}"]`);
-    const payoutDisplay = document.getElementById(`payout_${rowId}`);
-    
-    const number = numberInput.value.trim();
-    const clean = number.replace(/\D/g, '');
-    const topAmount = parseFloat(topInput.value) || 0;
-    const bottomAmount = parseFloat(bottomInput.value) || 0;
-    const toteAmount = parseFloat(toteInput.value) || 0;
-    
-    let payoutHtml = '';
-    const colorClass = factor === 1.0 ? 'text-success' : 'text-danger';
-    const factorText = factor === 1.0 ? 'เต็มราคา' : 'ลดราคา';
-    
-    if (clean.length === 2) {
-        if (topAmount > 0) {
-            const payout = topAmount * (payoutRates['2_top'] || 90) * factor;
-            payoutHtml += `<small class="d-block ${colorClass}">2บน: ${payout.toLocaleString()} บาท (${factorText})</small>`;
-        }
-        if (bottomAmount > 0) {
-            const payout = bottomAmount * (payoutRates['2_bottom'] || 90) * factor;
-            payoutHtml += `<small class="d-block ${colorClass}">2ล่าง: ${payout.toLocaleString()} บาท (${factorText})</small>`;
-        }
-    } else if (clean.length === 3) {
-        if (topAmount > 0) {
-            const payout = topAmount * (payoutRates['3_top'] || 900) * factor;
-            payoutHtml += `<small class="d-block ${colorClass}">3บน: ${payout.toLocaleString()} บาท (${factorText})</small>`;
-        }
-        if (toteAmount > 0) {
-            const payout = toteAmount * (payoutRates['tote'] || 150) * factor;
-            payoutHtml += `<small class="d-block ${colorClass}">โต๊ด: ${payout.toLocaleString()} บาท (${factorText})</small>`;
-        }
-    }
-    
-    payoutDisplay.innerHTML = payoutHtml || '<small class="d-block text-muted">รอข้อมูล</small>';
-}
-
-// Remove order row
-function removeRow(rowId) {
-    document.getElementById(rowId).remove();
-    orderRows = orderRows.filter(id => id !== rowId);
-    updateRowNumbers();
-    updateRemainingCount();
-    resetValidation();
-}
-
-// Update row numbers after removal
-function updateRowNumbers() {
-    const rows = document.querySelectorAll('.order-row[data-row-id]');
-    rows.forEach((row, index) => {
-        const numberCell = row.querySelector('.row-number');
-        if (numberCell) {
-            numberCell.textContent = index + 1;
-        }
-    });
-}
-
-// Update remaining count
-function updateRemainingCount() {
-    document.getElementById('remainingRows').textContent = maxRows - orderRows.length;
-    
-    const addBtn = document.getElementById('addRowBtn');
-    if (orderRows.length >= maxRows) {
-        addBtn.disabled = true;
-        addBtn.innerHTML = '<i class="fas fa-ban me-2"></i>ถึงขีดจำกัดแล้ว';
-    } else {
-        addBtn.disabled = false;
-        addBtn.innerHTML = `<i class="fas fa-plus me-2"></i>เพิ่มรายการ (เหลือ <span id="remainingRows">${maxRows - orderRows.length}</span> รายการ)`;
-    }
-}
-
-// Reset validation state
-function resetValidation() {
-    isValidated = false;
-    validationResults = [];
-    
-    document.getElementById('submitBtn').disabled = true;
-    document.getElementById('validationStatus').className = 'validation-status status-pending';
-    document.getElementById('validationStatus').innerHTML = '<i class="fas fa-clock me-2"></i>กรุณากรอกข้อมูลและกดปุ่ม "ตรวจสอบ ราคา" ก่อนสั่งซื้อ';
-    
-    document.getElementById('summaryPanel').style.display = 'none';
-}
-
-// Validate all orders
-async function validateOrder() {
-    const allRowsData = collectAllRowsData();
-    
-    if (allRowsData.length === 0) {
-        alert('กรุณากรอกข้อมูลอย่างน้อย 1 รายการ');
-        return;
-    }
-    
-    // Show loading
-    const validateBtn = document.getElementById('validateBtn');
-    const originalText = validateBtn.innerHTML;
-    validateBtn.disabled = true;
-    validateBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>กำลังตรวจสอบทั้งหมด...';
-    
-    try {
-        console.log('DEBUG: All rows data:', allRowsData);
-        console.log('DEBUG: CSRF Token:', getCSRFToken());
-        
-        const requestData = {
-            orders: allRowsData
-        };
-        console.log('DEBUG: Request data:', requestData);
-        
-        // Call bulk validation API
-        const response = await fetch('/api/validate_bulk_order', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCSRFToken()
-            },
-            body: JSON.stringify(requestData)
-        });
-        
-        console.log('DEBUG: Response status:', response.status);
-        console.log('DEBUG: Response headers:', Object.fromEntries(response.headers.entries()));
-        
-        const result = await response.json();
-        
-        if (!result.success) {
-            throw new Error(result.error);
-        }
-        
-        // Store validation results
-        validationResults = result.validation_results;
-        
-        // Update each row with validation results
-        validationResults.forEach(rowResult => {
-            const rowId = findRowIdByNumber(rowResult.number);
-            if (rowId) {
-                if (rowResult.status === 'error') {
-                    showRowMessage(rowId, rowResult.message, 'error');
-                } else {
-                    const messages = rowResult.details.map(d => 
-                        `${d.field_display}: ${d.reason} (จ่าย ${d.payout_rate}x)`
-                    ).join(' | ');
-                    
-                    showRowMessage(rowId, `✅ ${messages}`, rowResult.status);
-                    updateRowPayoutWithValidationDetails(rowId, rowResult.details);
-                }
-            }
-        });
-        
-        // Show summary
-        showValidationSummary(result.summary);
-        
-        isValidated = true;
-        document.getElementById('submitBtn').disabled = false;
-        document.getElementById('validationStatus').className = 'validation-status status-validated';
-        document.getElementById('validationStatus').innerHTML = '<i class="fas fa-check-circle me-2"></i>ตรวจสอบเรียบร้อย! สามารถกดสั่งซื้อได้';
-        
-    } catch (error) {
-        document.getElementById('validationStatus').className = 'validation-status status-error';
-        document.getElementById('validationStatus').innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>เกิดข้อผิดพลาดในการตรวจสอบ กรุณาลองใหม่';
-        console.error('Bulk validation error:', error);
-    } finally {
-        validateBtn.disabled = false;
-        validateBtn.innerHTML = originalText;
-    }
-}
-
-// Find row ID by number
-function findRowIdByNumber(number) {
-    for (let rowId of orderRows) {
-        const numberInput = document.querySelector(`input[name="number_${rowId}"]`);
-        if (numberInput && numberInput.value.trim() === number) {
-            return rowId;
-        }
-    }
-    return null;
-}
-
-// Update row payout with detailed validation results
-function updateRowPayoutWithValidationDetails(rowId, details) {
-    const payoutDisplay = document.getElementById(`payout_${rowId}`);
-    let payoutHtml = '';
-    
-    details.forEach(detail => {
-        const colorClass = detail.payout_rate === 1.0 ? 'text-success' : 'text-danger';
-        payoutHtml += `<small class="d-block ${colorClass}">${detail.field_display}: ${detail.estimated_payout.toLocaleString()}</small>`;
-    });
-    
-    payoutDisplay.innerHTML = payoutHtml || '<small class="d-block text-muted">รอข้อมูล</small>';
-}
-
-// Show validation summary
-function showValidationSummary(summary) {
-    document.getElementById('summaryContent').innerHTML = `
-        <div class="summary-item">
-            <span>จำนวนรายการ:</span>
-            <span><strong>${summary.total_items} รายการ</strong></span>
-        </div>
-        <div class="summary-item">
-            <span>ยอดเงินรวม:</span>
-            <span><strong>${summary.total_amount.toLocaleString()} บาท</strong></span>
-        </div>
-        <div class="summary-item">
-            <span>การจ่ายปกติ:</span>
-            <span>${summary.normal_payout_items} รายการ</span>
-        </div>
-        <div class="summary-item">
-            <span>การจ่ายลด:</span>
-            <span>${summary.reduced_payout_items} รายการ</span>
-        </div>
-        ${summary.blocked_items > 0 ? `
-        <div class="summary-item">
-            <span>เลขอั้น:</span>
-            <span class="text-warning">${summary.blocked_items} รายการ</span>
-        </div>
-        ` : ''}
-        ${summary.over_limit_items > 0 ? `
-        <div class="summary-item">
-            <span>เกินขีดจำกัด:</span>
-            <span class="text-warning">${summary.over_limit_items} รายการ</span>
-        </div>
-        ` : ''}
-        <hr style="border-color: rgba(255,255,255,0.3);">
-        <div class="summary-item">
-            <span>ประมาณการรับ:</span>
-            <span><strong>${summary.estimated_payout.toLocaleString()} บาท</strong></span>
-        </div>
-    `;
-    
-    document.getElementById('summaryPanel').style.display = 'block';
-}
-
-// Collect all rows data
-function collectAllRowsData() {
-    const allData = [];
-    
-    orderRows.forEach(rowId => {
-        const rowData = collectSingleRowData(rowId);
-        if (rowData) {
-            allData.push(rowData);
-        }
-    });
-    
-    return allData;
-}
-
-// Show summary panel
-function showSummary() {
-    const totalItems = validationResults.length;
-    let totalAmount = 0;
-    let estimatedPayout = 0;
-    
-    const summary = {
-        amount_2_top: 0,
-        amount_2_bottom: 0,
-        amount_tote: 0,
-        payout_2_top: 0,
-        payout_2_bottom: 0,
-        payout_tote: 0,
-        normalItems: 0,
-        reducedItems: 0
-    };
-    
-    validationResults.forEach(result => {
-        totalAmount += result.amount_2_top + result.amount_2_bottom + result.amount_tote;
-        
-        summary.amount_2_top += result.amount_2_top;
-        summary.amount_2_bottom += result.amount_2_bottom;
-        summary.amount_tote += result.amount_tote;
-        
-        const factor = result.payoutFactor || 1.0;
-        summary.payout_2_top += result.amount_2_top * (payoutRates['2_top'] || 90) * factor;
-        summary.payout_2_bottom += result.amount_2_bottom * (payoutRates['2_bottom'] || 90) * factor;
-        summary.payout_tote += result.amount_tote * (payoutRates['tote'] || 150) * factor;
-        
-        if (factor === 1.0) summary.normalItems++;
-        else summary.reducedItems++;
-    });
-    
-    estimatedPayout = summary.payout_2_top + summary.payout_2_bottom + summary.payout_tote;
-    
-    document.getElementById('summaryContent').innerHTML = `
-        <div class="summary-item">
-            <span>จำนวนรายการ:</span>
-            <span><strong>${totalItems} รายการ</strong></span>
-        </div>
-        <div class="summary-item">
-            <span>ยอดเงินรวม:</span>
-            <span><strong>${totalAmount.toLocaleString()} บาท</strong></span>
-        </div>
-        <div class="summary-item">
-            <span>2 ตัวบน:</span>
-            <span>${summary.amount_2_top.toLocaleString()} บาท</span>
-        </div>
-        <div class="summary-item">
-            <span>2 ตัวล่าง:</span>
-            <span>${summary.amount_2_bottom.toLocaleString()} บาท</span>
-        </div>
-        <div class="summary-item">
-            <span>โต๊ด:</span>
-            <span>${summary.amount_tote.toLocaleString()} บาท</span>
-        </div>
-        <div class="summary-item">
-            <span>การจ่ายปกติ:</span>
-            <span>${summary.normalItems} รายการ</span>
-        </div>
-        <div class="summary-item">
-            <span>การจ่ายลด:</span>
-            <span>${summary.reducedItems} รายการ</span>
-        </div>
-        <hr style="border-color: rgba(255,255,255,0.3);">
-        <div class="summary-item">
-            <span>ประมาณการรับ:</span>
-            <span><strong>${estimatedPayout.toLocaleString()} บาท</strong></span>
-        </div>
-    `;
-    
-    document.getElementById('summaryPanel').style.display = 'block';
-}
-
-// Submit order
-async function submitOrder() {
-    if (!isValidated) {
-        alert('กรุณาตรวจสอบข้อมูลก่อนสั่งซื้อ');
-        return;
-    }
-    
-    const orderData = collectAllRowsData();
-    const customerName = document.getElementById('customerName').value.trim();
-    const totalAmount = orderData.reduce((sum, row) => 
-        sum + row.amount_2_top + row.amount_2_bottom + row.amount_tote, 0);
-    
-    const confirmed = confirm(`ยืนยันการสั่งซื้อ?\n\nจำนวนรายการ: ${orderData.length} รายการ\nยอดเงิน: ${totalAmount.toLocaleString()} บาท\nลูกค้า: ${customerName || 'ไม่ระบุ'}`);
-    
-    if (!confirmed) return;
-    
-    // Show loading
-    const submitBtn = document.getElementById('submitBtn');
-    const originalText = submitBtn.innerHTML;
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>กำลังบันทึก...';
-    
-    try {
-        // Submit order to API
-        const response = await fetch('/api/submit_bulk_order', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCSRFToken()
-            },
-            body: JSON.stringify({
-                orders: orderData,
-                customer_name: customerName
-            })
-        });
-        
-        const result = await response.json();
-        
-        if (!result.success) {
-            throw new Error(result.error);
-        }
-        
-        // Show success message with validation factors
-        let successMessage = `✅ บันทึกคำสั่งซื้อเรียบร้อย!\n\n`;
-        successMessage += `เลขที่คำสั่งซื้อ: ${result.order_id}\n`;
-        successMessage += `ยอดเงินรวม: ${result.total_amount.toLocaleString()} บาท\n`;
-        successMessage += `จำนวนรายการ: ${result.total_items} รายการ\n`;
-        
-        if (result.validation_factors_recorded) {
-            successMessage += `\n📊 Validation Factors บันทึกแล้ว:\n`;
-            result.external_calculation_data.forEach(item => {
-                successMessage += `- ${item.field_display} ${item.number}: Factor ${item.validation_factor}x\n`;
-            });
-            successMessage += `\n💡 ข้อมูล Validation Factors สามารถใช้คำนวณการจ่ายภายนอกได้`;
-        }
-        
-        alert(successMessage);
-        
-        // Clear form
-        clearAll();
-        resetValidation();
-        document.getElementById('customerName').value = '';
-        
-        // Optional: redirect to orders page
-        // window.location.href = `/user/order/${result.order_id}`;
-        
-    } catch (error) {
-        alert(`เกิดข้อผิดพลาดในการบันทึก:\n${error.message}`);
-        console.error('Submit error:', error);
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalText;
-    }
-}
-
-// Clear all data
-function clearAll() {
-    if (orderRows.length === 0) return;
-    
-    if (confirm('ต้องการล้างข้อมูลทั้งหมดหรือไม่?')) {
-        document.getElementById('orderItems').innerHTML = '';
-        orderRows = [];
-        updateRemainingCount();
-        resetValidation();
-    }
-}
-
-// Fill sample data
-function fillSampleData() {
-    clearAll();
-    
-    const sampleData = [
-        { number: '37', amount_2_top: 100, amount_2_bottom: 50 },
-        { number: '50', amount_2_top: 0, amount_2_bottom: 150 },
-        { number: '123', amount_3_top: 50, amount_tote: 25 }
-    ];
-    
-    sampleData.forEach(item => {
-        addOrderRow();
-        const lastRowId = orderRows[orderRows.length - 1];
-        
-        document.querySelector(`input[name="number_${lastRowId}"]`).value = item.number;
-        if (item.amount_2_top) document.querySelector(`input[name="amount_2_top_${lastRowId}"]`).value = item.amount_2_top;
-        if (item.amount_2_bottom) document.querySelector(`input[name="amount_2_bottom_${lastRowId}"]`).value = item.amount_2_bottom;
-        if (item.amount_3_top) document.querySelector(`input[name="amount_3_top_${lastRowId}"]`).value = item.amount_3_top;
-        if (item.amount_tote) document.querySelector(`input[name="amount_tote_${lastRowId}"]`).value = item.amount_tote;
-        
-        validateNumberAndToggleFields(lastRowId);
-        updateRowPayout(lastRowId);
-    });
-}
-
-// Update current rates display
-function updateCurrentRatesDisplay() {
-    if (payoutRates && Object.keys(payoutRates).length > 0) {
-        document.getElementById('rate-2-top').textContent = `${payoutRates['2_top'] || 90}x`;
-        document.getElementById('rate-2-bottom').textContent = `${payoutRates['2_bottom'] || 90}x`;
-        document.getElementById('rate-3-top').textContent = `${payoutRates['3_top'] || 900}x`;
-        document.getElementById('rate-tote').textContent = `${payoutRates['tote'] || 150}x`;
-        console.log('✅ Updated rate display with database values');
-    }
-}
-
-// Initialize page
+// Initialize the order form when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
-    // Load payout rates from database first
-    loadPayoutRates().then(() => {
-        // Add initial row
-        addOrderRow();
-        
-        // Update rate display
-        updateCurrentRatesDisplay();
-        
-        console.log('User Order Form initialized with database rates');
+    // Create global orderForm instance
+    window.orderForm = new LotoJungOrderForm();
+    
+    // Setup event listeners
+    document.getElementById('addRowBtn').addEventListener('click', function() {
+        window.orderForm.addOrderRow();
     });
+    
+    document.getElementById('submitBtn').addEventListener('click', function() {
+        window.orderForm.validateAndSubmitOrder();
+    });
+    
+    // Clear all function
+    window.clearAll = function() {
+        if (confirm('ต้องการล้างข้อมูลทั้งหมดหรือไม่?')) {
+            window.orderForm.clearAll();
+        }
+    };
+    
+    // Fill sample data function
+    window.fillSampleData = function() {
+        window.orderForm.fillSampleData();
+    };
 });
 </script>
 {% endblock %}

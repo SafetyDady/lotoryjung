@@ -98,5 +98,8 @@ def create_app(config_name='development'):
     app.register_blueprint(admin_bp, url_prefix='/admin')
     app.register_blueprint(api_bp, url_prefix='/api')
     
+    # Register improved API blueprint
+    from app.routes.improved_validation_flow import improved_api_bp
+    app.register_blueprint(improved_api_bp, url_prefix='/api/v2')
+    
     return app
-

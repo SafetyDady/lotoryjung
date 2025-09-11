@@ -14,6 +14,7 @@ class LoginForm(FlaskForm):
     submit = SubmitField('เข้าสู่ระบบ')
 
 class RegisterForm(FlaskForm):
+    name = StringField('ชื่อ', validators=[DataRequired(), Length(min=3, max=100)])
     username = StringField('ชื่อผู้ใช้', validators=[DataRequired(), Length(min=3, max=80)])
     password = PasswordField('รหัสผ่าน', validators=[DataRequired(), Length(min=6)])
     password2 = PasswordField('ยืนยันรหัสผ่าน', validators=[DataRequired(), EqualTo('password')])
@@ -113,6 +114,7 @@ def register():
         
         # Create new user
         user = User(
+            name=form.name.data,
             username=form.username.data,
             is_active=True
         )

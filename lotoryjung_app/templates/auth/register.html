@@ -17,6 +17,18 @@
                     {{ form.hidden_tag() }}
                     
                     <div class="mb-3">
+                        {{ form.name.label(class="form-label") }}
+                        {{ form.name(class="form-control form-control-lg", placeholder="ชื่อ (3 ตัวอักษรขึ้นไป)") }}
+                        {% if form.name.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.name.errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
                         {{ form.username.label(class="form-label") }}
                         {{ form.username(class="form-control form-control-lg", placeholder="ชื่อผู้ใช้ (3 ตัวอักษรขึ้นไป)") }}
                         {% if form.username.errors %}
