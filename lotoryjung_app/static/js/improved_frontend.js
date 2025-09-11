@@ -142,6 +142,63 @@ class LotoJungOrderForm {
         // Update row data
         const rowId = this.getRowIdFromInput(input);
         this.updateRowData(rowId, 'number', value);
+        
+        // Handle field enabling/disabling based on number length
+        this.handleFieldAvailability(rowId, value);
+    }
+    
+    handleFieldAvailability(rowId, number) {
+        const bottomInput = document.getElementById(`${rowId}_amount_bottom`);
+        const toteInput = document.getElementById(`${rowId}_amount_tote`);
+        
+        if (!bottomInput || !toteInput) return;
+        
+        const numberLength = number.length;
+        
+        if (numberLength === 2) {
+            // 2 หลัก: ช่องโต๊ดไม่สามารถกรอกได้
+            bottomInput.disabled = false;
+            bottomInput.style.backgroundColor = '';
+            bottomInput.style.color = '';
+            bottomInput.placeholder = 'ล่าง';
+            
+            toteInput.disabled = true;
+            toteInput.value = '';
+            toteInput.style.backgroundColor = '#666';
+            toteInput.style.color = '#999';
+            toteInput.placeholder = '';
+            
+            // Update row data
+            this.updateRowData(rowId, 'amount_tote', '');
+            
+        } else if (numberLength === 3) {
+            // 3 หลัก: ช่องล่างไม่สามารถกรอกได้
+            toteInput.disabled = false;
+            toteInput.style.backgroundColor = '';
+            toteInput.style.color = '';
+            toteInput.placeholder = 'โต๊ด';
+            
+            bottomInput.disabled = true;
+            bottomInput.value = '';
+            bottomInput.style.backgroundColor = '#666';
+            bottomInput.style.color = '#999';
+            bottomInput.placeholder = '';
+            
+            // Update row data
+            this.updateRowData(rowId, 'amount_bottom', '');
+            
+        } else {
+            // เลขไม่ครบ: เปิดใช้งานทุกช่อง
+            bottomInput.disabled = false;
+            bottomInput.style.backgroundColor = '';
+            bottomInput.style.color = '';
+            bottomInput.placeholder = 'ล่าง';
+            
+            toteInput.disabled = false;
+            toteInput.style.backgroundColor = '';
+            toteInput.style.color = '';
+            toteInput.placeholder = 'โต๊ด';
+        }
     }
     
     formatAmountInput(input) {
@@ -294,7 +351,7 @@ class LotoJungOrderForm {
                            class="number-input" 
                            id="${row.id}_number"
                            value="${row.number}"
-                           placeholder="12"
+                           placeholder="เลข"
                            inputmode="numeric"
                            pattern="[0-9]*"
                            maxlength="3">
@@ -304,7 +361,7 @@ class LotoJungOrderForm {
                            class="amount-input" 
                            id="${row.id}_amount_top"
                            value="${row.amount_top}"
-                           placeholder="100"
+                           placeholder="บน"
                            inputmode="numeric"
                            pattern="[0-9]*">
                 </td>
@@ -313,7 +370,7 @@ class LotoJungOrderForm {
                            class="amount-input" 
                            id="${row.id}_amount_bottom"
                            value="${row.amount_bottom}"
-                           placeholder="200"
+                           placeholder="ล่าง"
                            inputmode="numeric"
                            pattern="[0-9]*">
                 </td>
@@ -322,7 +379,7 @@ class LotoJungOrderForm {
                            class="amount-input" 
                            id="${row.id}_amount_tote"
                            value="${row.amount_tote}"
-                           placeholder="150"
+                           placeholder="โต๊ด"
                            inputmode="numeric"
                            pattern="[0-9]*">
                 </td>
@@ -338,6 +395,13 @@ class LotoJungOrderForm {
                 </td>
             `;
             tbody.appendChild(tr);
+        });
+        
+        // Apply field availability rules after rendering
+        this.orderRows.forEach(row => {
+            if (row.number) {
+                this.handleFieldAvailability(row.id, row.number);
+            }
         });
     }
     

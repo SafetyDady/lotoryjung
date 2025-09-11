@@ -263,6 +263,62 @@
     .order-input {
         padding: 10px 5px;
         font-size: 1rem;
+        min-width: 60px;
+        width: 100%;
+    }
+    
+    .number-input {
+        min-width: 70px;
+        width: 100%;
+        padding: 12px 8px;
+        font-size: 1.1rem;
+        text-align: center;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+    
+    .amount-input {
+        min-width: 80px;
+        width: 100%;
+        padding: 12px 8px;
+        font-size: 1.1rem;
+        text-align: center;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+    
+    .field-header {
+        font-size: 0.9rem;
+        font-weight: bold;
+        padding: 10px 5px;
+        text-align: center;
+    }
+    
+    .status-cell {
+        font-size: 0.8rem;
+        padding: 5px;
+        text-align: center;
+    }
+    
+    .delete-btn {
+        padding: 8px 12px;
+        font-size: 1rem;
+    }
+    
+    /* Placeholder styling */
+    .number-input::placeholder,
+    .amount-input::placeholder {
+        color: #999;
+        opacity: 1;
+        font-style: italic;
+    }
+    
+    /* Disabled input styling */
+    .number-input:disabled,
+    .amount-input:disabled {
+        background-color: #f5f5f5 !important;
+        color: #999 !important;
+        cursor: not-allowed;
     }
 }
 </style>
@@ -326,9 +382,9 @@
             <div class="row order-row" style="background: #f8f9fa;">
                 <div class="col-1 field-header">#</div>
                 <div class="col-2 field-header">เลข</div>
-                <div class="col-2 field-header">ซื้อ บน</div>
-                <div class="col-2 field-header">ซื้อ ล่าง</div>
-                <div class="col-2 field-header">ซื้อ โต๊ด</div>
+                <div class="col-2 field-header">บน</div>
+                <div class="col-2 field-header">ล่าง</div>
+                <div class="col-2 field-header">โต๊ด</div>
                 <div class="col-2 field-header">รายการซื้อ</div>
                 <div class="col-1 field-header">จัดการ</div>
             </div>
