@@ -257,52 +257,52 @@
 
 @media (max-width: 768px) {
     .order-table {
-        font-size: 0.9rem;
+        font-size: 0.8rem;
     }
     
     .order-input {
-        padding: 10px 5px;
-        font-size: 1rem;
-        min-width: 60px;
+        padding: 8px 4px;
+        font-size: 0.9rem;
+        min-width: 50px;
         width: 100%;
     }
     
     .number-input {
-        min-width: 70px;
+        min-width: 60px;
         width: 100%;
-        padding: 12px 8px;
-        font-size: 1.1rem;
+        padding: 8px 4px;
+        font-size: 0.9rem;
         text-align: center;
         border: 1px solid #ddd;
         border-radius: 4px;
     }
     
     .amount-input {
-        min-width: 80px;
+        min-width: 65px;
         width: 100%;
-        padding: 12px 8px;
-        font-size: 1.1rem;
+        padding: 8px 4px;
+        font-size: 0.9rem;
         text-align: center;
         border: 1px solid #ddd;
         border-radius: 4px;
     }
     
     .field-header {
-        font-size: 0.9rem;
+        font-size: 0.8rem;
         font-weight: bold;
-        padding: 10px 5px;
+        padding: 8px 3px;
         text-align: center;
     }
     
     .status-cell {
-        font-size: 0.8rem;
-        padding: 5px;
+        font-size: 0.7rem;
+        padding: 4px 2px;
         text-align: center;
     }
     
     .delete-btn {
-        padding: 8px 12px;
-        font-size: 1rem;
+        padding: 6px 8px;
+        font-size: 0.9rem;
     }
     
     /* Placeholder styling */
@@ -311,14 +311,45 @@
         color: #999;
         opacity: 1;
         font-style: italic;
+        font-size: 0.8rem;
     }
     
     /* Disabled input styling */
     .number-input:disabled,
     .amount-input:disabled {
-        background-color: #f5f5f5 !important;
+        background-color: #666 !important;
         color: #999 !important;
         cursor: not-allowed;
+    }
+    
+    /* Specific styling for 390px width */
+    @media (max-width: 390px) {
+        .number-input {
+            min-width: 55px;
+            padding: 6px 3px;
+            font-size: 0.85rem;
+        }
+        
+        .amount-input {
+            min-width: 60px;
+            padding: 6px 3px;
+            font-size: 0.85rem;
+        }
+        
+        .field-header {
+            font-size: 0.75rem;
+            padding: 6px 2px;
+        }
+        
+        .status-cell {
+            font-size: 0.65rem;
+            padding: 3px 1px;
+        }
+        
+        .delete-btn {
+            padding: 4px 6px;
+            font-size: 0.8rem;
+        }
     }
 }
 </style>

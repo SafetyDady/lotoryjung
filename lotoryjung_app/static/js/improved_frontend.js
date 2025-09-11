@@ -341,6 +341,20 @@ class LotoJungOrderForm {
         const tbody = document.getElementById('orderTableBody');
         if (!tbody) return;
         
+        // Save current input values before clearing
+        const currentValues = {};
+        this.orderRows.forEach(row => {
+            const numberInput = document.getElementById(`${row.id}_number`);
+            const topInput = document.getElementById(`${row.id}_amount_top`);
+            const bottomInput = document.getElementById(`${row.id}_amount_bottom`);
+            const toteInput = document.getElementById(`${row.id}_amount_tote`);
+            
+            if (numberInput) currentValues[`${row.id}_number`] = numberInput.value;
+            if (topInput) currentValues[`${row.id}_amount_top`] = topInput.value;
+            if (bottomInput) currentValues[`${row.id}_amount_bottom`] = bottomInput.value;
+            if (toteInput) currentValues[`${row.id}_amount_tote`] = toteInput.value;
+        });
+        
         tbody.innerHTML = '';
         
         this.orderRows.forEach(row => {
@@ -350,7 +364,7 @@ class LotoJungOrderForm {
                     <input type="text" 
                            class="number-input" 
                            id="${row.id}_number"
-                           value="${row.number}"
+                           value="${currentValues[`${row.id}_number`] || row.number || ''}"
                            placeholder="เลข"
                            inputmode="numeric"
                            pattern="[0-9]*"
@@ -360,7 +374,7 @@ class LotoJungOrderForm {
                     <input type="text" 
                            class="amount-input" 
                            id="${row.id}_amount_top"
-                           value="${row.amount_top}"
+                           value="${currentValues[`${row.id}_amount_top`] || row.amount_top || ''}"
                            placeholder="บน"
                            inputmode="numeric"
                            pattern="[0-9]*">
@@ -369,7 +383,7 @@ class LotoJungOrderForm {
                     <input type="text" 
                            class="amount-input" 
                            id="${row.id}_amount_bottom"
-                           value="${row.amount_bottom}"
+                           value="${currentValues[`${row.id}_amount_bottom`] || row.amount_bottom || ''}"
                            placeholder="ล่าง"
                            inputmode="numeric"
                            pattern="[0-9]*">
@@ -378,7 +392,7 @@ class LotoJungOrderForm {
                     <input type="text" 
                            class="amount-input" 
                            id="${row.id}_amount_tote"
-                           value="${row.amount_tote}"
+                           value="${currentValues[`${row.id}_amount_tote`] || row.amount_tote || ''}"
                            placeholder="โต๊ด"
                            inputmode="numeric"
                            pattern="[0-9]*">
